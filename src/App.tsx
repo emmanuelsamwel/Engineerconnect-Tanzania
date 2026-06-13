@@ -20,12 +20,19 @@ import {
 export default function App() {
   // Global States
   const [language, setLanguage] = useState<Language>('en');
-  const [screen, setScreen] = useState<Screen>('splash');
+  const [screen, setScreen] = useState<Screen>('dashboard');
   const [userRole, setUserRole] = useState<UserRole>('guest');
-  const [userProfile, setUserProfile] = useState<{ name: string; phone: string; location: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; phone: string; email?: string; location: string; engineerId?: string } | null>(null);
 
   // Entities
-  const [engineers, setEngineers] = useState<Engineer[]>(INITIAL_ENGINEERS);
+  const [engineers, setEngineers] = useState<Engineer[]>(() => {
+    const saved = localStorage.getItem('ec_engineers');
+    return saved ? JSON.parse(saved) : INITIAL_ENGINEERS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ec_engineers', JSON.stringify(engineers));
+  }, [engineers]);
   const [equipmentList, setEquipmentList] = useState<Equipment[]>(INITIAL_EQUIPMENT);
   const [requests, setRequests] = useState<ServiceRequest[]>(INITIAL_REQUESTS);
   
@@ -109,6 +116,20 @@ export default function App() {
   const [paymentPhone, setPaymentPhone] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
+  // Authentication Modal States & Inputs
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [regRole, setRegRole] = useState<'customer' | 'engineer'>('customer');
+
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regLocation, setRegLocation] = useState('Dar es Salaam');
+  const [regCategory, setRegCategory] = useState<Category>('Electrical');
+  const [regExperience, setRegExperience] = useState('2');
+  const [regCertifications, setRegCertifications] = useState('');
+  const [regBio, setRegBio] = useState('');
+
   // Handle local persistence load
   useEffect(() => {
     const savedProfile = localStorage.getItem('ec_user_profile');
@@ -119,6 +140,10 @@ export default function App() {
       setUserRole(savedRole as UserRole);
       setScreen('dashboard');
       if (savedLang) setLanguage(savedLang as Language);
+    } else {
+      setUserProfile(null);
+      setUserRole('guest');
+      setScreen('dashboard');
     }
   }, []);
 
@@ -136,7 +161,7 @@ export default function App() {
     localStorage.removeItem('ec_user_role');
     setUserProfile(null);
     setUserRole('guest');
-    setScreen('splash');
+    setScreen('dashboard');
   };
 
   // Social feed handlers
@@ -188,7 +213,8 @@ export default function App() {
     if (!postTitle || !postDescEn) return;
 
     // Determine author profile
-    const activeEng = engineers.find(eng => eng.id === 'eng_1') || engineers[0];
+    const activeEngId = userProfile?.engineerId;
+    const activeEng = engineers.find(eng => eng.id === activeEngId) || engineers.find(eng => eng.id === 'eng_1') || engineers[0];
 
     const newPost: WorkPost = {
       id: `post_${Date.now()}`,
@@ -250,7 +276,8 @@ export default function App() {
     if (!amount.trim() || !commentText.trim()) return;
 
     // Determine bidding engineer
-    const activeEng = engineers.find(eng => eng.id === 'eng_1') || engineers[0];
+    const activeEngId = userProfile?.engineerId;
+    const activeEng = engineers.find(eng => eng.id === activeEngId) || engineers.find(eng => eng.id === 'eng_1') || engineers[0];
 
     setClientJobs(prev => prev.map(job => {
       if (job.id === jobId) {
@@ -541,25 +568,36 @@ export default function App() {
                 setLanguage(stepL);
                 localStorage.setItem('ec_user_language', stepL);
               }}
-              className="flex items-center space-x-1 text-slate-350 hover:text-white transition px-2 py-1 rounded bg-slate-800"
+              className="flex items-center space-x-1 text-slate-350 hover:text-white transition px-2.5 py-1 rounded bg-slate-800 border border-white/5"
             >
               <Globe className="w-3.5 h-3.5 text-yellow-405" />
               <span>{language === 'en' ? 'Swahili' : 'English'}</span>
             </button>
 
-            {userProfile && (
-              <div className="text-right hidden sm:block">
-                <p className="font-bold text-white text-[11px]">{userProfile.name}</p>
-                <p className="text-[9px] text-slate-500 font-mono tracking-tight">{userProfile.location}</p>
+            {userProfile ? (
+              <div className="flex items-center space-x-2.5">
+                <div className="text-right hidden sm:block">
+                  <p className="font-bold text-white text-[11px] leading-tight">{userProfile.name}</p>
+                  <p className="text-[9px] text-slate-400 font-mono tracking-tight capitalize">{userProfile.location} • {userRole}</p>
+                </div>
+                <button
+                  onClick={logout}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-rose-450 hover:text-rose-400 text-[10px] font-mono tracking-wider transition-all"
+                >
+                  [Sign Out]
+                </button>
               </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setAuthMode('login');
+                  setShowAuthModal(true);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs transition shadow-lg flex items-center gap-1.5"
+              >
+                🔑 {language === 'sw' ? 'Ingia / Jisajili' : 'Sign In / Register'}
+              </button>
             )}
-
-            <button
-              onClick={logout}
-              className="text-[10px] font-mono tracking-wider text-rose-450 hover:underline hover:text-rose-400"
-            >
-              [Exit]
-            </button>
           </div>
 
         </div>
@@ -725,7 +763,15 @@ export default function App() {
                             </div>
                           </div>
                           <button
-                            onClick={() => setShowCreatePostForm(!showCreatePostForm)}
+                            onClick={() => {
+                              if (userRole !== 'engineer') {
+                                setAuthMode('register');
+                                setRegRole('engineer');
+                                setShowAuthModal(true);
+                              } else {
+                                setShowCreatePostForm(!showCreatePostForm);
+                              }
+                            }}
                             className="p-1 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-450 text-slate-950 font-extrabold text-[11px] transition shadow"
                           >
                             {showCreatePostForm ? (language === 'sw' ? 'Funga' : 'Cancel') : (language === 'sw' ? '📢 Tangaza Kazi' : '📢 Post Work')}
@@ -1051,7 +1097,15 @@ export default function App() {
                             </div>
                           </div>
                           <button
-                            onClick={() => setShowCreateJobForm(!showCreateJobForm)}
+                            onClick={() => {
+                              if (userRole === 'guest') {
+                                setAuthMode('register');
+                                setRegRole('customer');
+                                setShowAuthModal(true);
+                              } else {
+                                setShowCreateJobForm(!showCreateJobForm);
+                              }
+                            }}
                             className="p-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-450 text-slate-950 font-black text-xs transition shadow flex items-center gap-1.5 self-start"
                           >
                             {showCreateJobForm ? (language === 'sw' ? 'Funga Fomu' : 'Cancel Post') : (language === 'sw' ? '📢 Tangaza Kazi / Post Job' : '📢 Post New Job Tender')}
@@ -1356,10 +1410,16 @@ export default function App() {
                                         </span>
                                         <button
                                           onClick={() => {
-                                            setBiddingJobId(job.id);
-                                            // Pre-fill rough competitive guess
-                                            setBidAmount(job.budget);
-                                            setBidComment('');
+                                            if (userRole !== 'engineer') {
+                                              setAuthMode('register');
+                                              setRegRole('engineer');
+                                              setShowAuthModal(true);
+                                            } else {
+                                              setBiddingJobId(job.id);
+                                              // Pre-fill rough competitive guess
+                                              setBidAmount(job.budget);
+                                              setBidComment('');
+                                            }
                                           }}
                                           className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-emerald-400 hover:text-emerald-305 transition text-[11px] font-black border border-emerald-500/10 flex items-center gap-1"
                                         >
@@ -1856,6 +1916,420 @@ export default function App() {
           ? "Platform EngineerConnect Tanzania is fully compatible with ERB caps regulation guidelines. Active CMM logs." 
           : "Secure Professional Engineering Marketplace • EngineerConnect Tanzania © 2026"}
       </footer>
+
+      {/* Modern Interactive Authentication and Registration Overlay Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in" id="auth-modal-overlay">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh]" id="auth-modal-content">
+            
+            {/* Close button */}
+            <button 
+              onClick={() => setShowAuthModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition p-1.5 bg-slate-950/40 rounded-full border border-white/5 font-mono text-xs w-7 h-7 flex items-center justify-center"
+            >
+              ✕
+            </button>
+
+            {/* Header */}
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-black text-white tracking-tight flex items-center justify-center gap-2">
+                <span>🔑</span>
+                <span>{authMode === 'login' ? 'Account Authentication' : 'Create an Account'}</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                {authMode === 'login' 
+                  ? 'Sign in to access your projects, bids, and administrator controls.' 
+                  : 'Join the professional directory. Essential details are checked during directory listing.'}
+              </p>
+            </div>
+
+            {/* Auth Tab Picker */}
+            <div className="grid grid-cols-2 bg-slate-950 p-1 rounded-xl mb-6 border border-white/5">
+              <button
+                onClick={() => setAuthMode('login')}
+                className={`py-2 text-xs font-bold font-mono transition-all rounded-lg ${
+                  authMode === 'login' 
+                    ? 'bg-slate-800 text-white shadow' 
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🔐 {language === 'sw' ? 'Ingia Sasa' : 'Sign In'}
+              </button>
+              <button
+                onClick={() => setAuthMode('register')}
+                className={`py-2 text-xs font-bold font-mono transition-all rounded-lg ${
+                  authMode === 'register' 
+                    ? 'bg-slate-800 text-white shadow' 
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                📝 {language === 'sw' ? 'Jisajili Kazi' : 'Register Account'}
+              </button>
+            </div>
+
+            {authMode === 'login' ? (
+              /* ================== SIGN IN VIEW ================== */
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Email or Phone Number</label>
+                  <input 
+                    type="text"
+                    id="signin-identity"
+                    placeholder="e.g. amina@engineerconnect.co.tz"
+                    className="w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600 font-medium"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Password / verification pin</label>
+                  <input 
+                    type="password"
+                    id="signin-password"
+                    placeholder="••••••"
+                    defaultValue="123456"
+                    className="w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    const identity = (document.getElementById('signin-identity') as HTMLInputElement)?.value.trim() || '';
+                    
+                    if (!identity) {
+                      alert('Please enter your email or phone number to sign in.');
+                      return;
+                    }
+
+                    // Determine role
+                    let computedRole: UserRole = 'customer';
+                    let computedName = 'User';
+                    let computedLocation = 'Dar es Salaam';
+                    let computedId: string | undefined = undefined;
+
+                    if (identity.toLowerCase().includes('admin')) {
+                      computedRole = 'admin';
+                      computedName = 'Chief Administrator';
+                      computedLocation = 'Dodoma Gov Hub';
+                    } else if (identity.toLowerCase().includes('amina') || identity.toLowerCase().includes('eng_') || identity.toLowerCase().includes('mhandisi') || identity.toLowerCase().includes('shehe')) {
+                      computedRole = 'engineer';
+                      const matchesEng = engineers.find(e => e.email.toLowerCase().includes(identity.toLowerCase()) || e.name.toLowerCase().includes(identity.toLowerCase()));
+                      computedName = matchesEng ? matchesEng.name : 'Eng. Amina Shehe';
+                      computedLocation = matchesEng ? matchesEng.location : 'Mwanza';
+                      computedId = matchesEng ? matchesEng.id : 'eng_1';
+                    } else {
+                      // Look into engineers as well in case they registered
+                      const matchesEng = engineers.find(e => e.email.toLowerCase() === identity.toLowerCase() || e.phone === identity);
+                      if (matchesEng) {
+                        computedRole = 'engineer';
+                        computedName = matchesEng.name;
+                        computedLocation = matchesEng.location;
+                        computedId = matchesEng.id;
+                      } else {
+                        computedRole = 'customer';
+                        computedName = identity.split('@')[0];
+                        computedLocation = 'Dar es Salaam';
+                      }
+                    }
+
+                    const newProf = { name: computedName, phone: '+255 712 000 000', email: identity, location: computedLocation, engineerId: computedId };
+                    setUserProfile(newProf);
+                    setUserRole(computedRole);
+                    localStorage.setItem('ec_user_profile', JSON.stringify(newProf));
+                    localStorage.setItem('ec_user_role', computedRole);
+                    setShowAuthModal(false);
+                    if (computedRole === 'admin') setActiveTab('admin');
+                  }}
+                  className="w-full mt-2 py-3 bg-gradient-to-r from-emerald-500 to-teal-550 text-slate-950 font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg hover:brightness-110 active:scale-98"
+                >
+                  Authenticate Profile Check
+                </button>
+
+                {/* Quick-test accounts list */}
+                <div className="pt-4 border-t border-white/5 space-y-2">
+                  <p className="text-[10px] uppercase font-mono tracking-wider text-slate-450 text-center">Click to immediately sign in as simulation profile:</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => {
+                        const newProf = { name: 'Mwanza General Hospital', phone: '+255 655 432 109', email: 'hospital@clinic.co.tz', location: 'Mwanza' };
+                        setUserProfile(newProf);
+                        setUserRole('customer');
+                        localStorage.setItem('ec_user_profile', JSON.stringify(newProf));
+                        localStorage.setItem('ec_user_role', 'customer');
+                        setShowAuthModal(false);
+                        setActiveTab('find');
+                      }}
+                      className="p-2 py-2.5 rounded bg-slate-950 border border-white/5 hover:border-emerald-500/20 text-center text-[10px] text-slate-300 hover:text-white transition"
+                    >
+                      🏫 Client Demo
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newProf = { name: 'Eng. Amina Shehe', phone: '+255 765 990 120', email: 'amina.shehe@engineerconnect.co.tz', location: 'Mwanza', engineerId: 'eng_1' };
+                        setUserProfile(newProf);
+                        setUserRole('engineer');
+                        localStorage.setItem('ec_user_profile', JSON.stringify(newProf));
+                        localStorage.setItem('ec_user_role', 'engineer');
+                        setShowAuthModal(false);
+                        setActiveTab('find');
+                      }}
+                      className="p-2 py-2.5 rounded bg-slate-950 border border-white/5 hover:border-yellow-500/20 text-center text-[10px] text-slate-300 hover:text-white transition"
+                    >
+                      🛠️ Engineer Demo
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newProf = { name: 'Chief Administrator', phone: '+255 222 333 444', email: 'admin@engineerconnect.co.tz', location: 'Dar es Salaam' };
+                        setUserProfile(newProf);
+                        setUserRole('admin');
+                        localStorage.setItem('ec_user_profile', JSON.stringify(newProf));
+                        localStorage.setItem('ec_user_role', 'admin');
+                        setShowAuthModal(false);
+                        setActiveTab('admin');
+                      }}
+                      className="p-2 py-2.5 rounded bg-slate-950 border border-white/5 hover:border-blue-500/20 text-center text-[10px] text-slate-300 hover:text-white transition"
+                    >
+                      🛡️ Admin Demo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* ================== SIGN UP (REGISTER) VIEW ================== */
+              <div className="space-y-4">
+                
+                {/* Register Role Picker */}
+                <div className="flex gap-4 p-1 bg-slate-950 rounded-lg border border-white/5 text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('customer')}
+                    className={`flex-1 py-1.5 text-center rounded transition-all ${
+                      regRole === 'customer' 
+                        ? 'bg-slate-800 text-white font-bold' 
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🙋 {language === 'sw' ? 'Mimi ni Mteja' : 'I am a Client'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('engineer')}
+                    className={`flex-1 py-1.5 text-center rounded transition-all ${
+                      regRole === 'engineer' 
+                        ? 'bg-slate-800 text-white font-bold' 
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🛠️ {language === 'sw' ? 'Mimi ni Mtaalamu' : 'I am a Specialist'}
+                  </button>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!regName || !regEmail || !regPhone) {
+                    alert('Please fill out Name, Email, and Phone fields.');
+                    return;
+                  }
+
+                  if (regRole === 'engineer') {
+                    // Create a brand new Engineer profile in our directory
+                    const newEngId = `eng_reg_${Date.now()}`;
+                    const newEng: Engineer = {
+                      id: newEngId,
+                      name: regName,
+                      email: regEmail,
+                      phone: regPhone,
+                      category: regCategory,
+                      location: regLocation,
+                      rating: 5.0,
+                      experienceYears: Number(regExperience) || 1,
+                      bio: regBio || 'Registered service specialist in engineering works.',
+                      bioSwahili: regBio || '',
+                      ratesPerHour: '35,000 TZS/hr',
+                      isVerified: false, // Starts as unverified! Admins will verify them in their separate audit panel
+                      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+                      projects: [],
+                      certifications: regCertifications ? regCertifications.split(',').map(s => s.trim()) : ['Tanzania Professional Board Candidate'],
+                      completedJobs: 0
+                    };
+
+                    // Add to engineers state & save
+                    const updatedEngineers = [newEng, ...engineers];
+                    setEngineers(updatedEngineers);
+                    localStorage.setItem('ec_engineers', JSON.stringify(updatedEngineers));
+
+                    const activeProf = {
+                      name: regName,
+                      phone: regPhone,
+                      email: regEmail,
+                      location: regLocation,
+                      engineerId: newEngId
+                    };
+
+                    setUserProfile(activeProf);
+                    setUserRole('engineer');
+                    localStorage.setItem('ec_user_profile', JSON.stringify(activeProf));
+                    localStorage.setItem('ec_user_role', 'engineer');
+
+                    alert(language === 'sw' 
+                      ? 'Umefanikiwa kusajiliwa kama Mtaalamu! Akaunti yako itakuwa Chini ya Uthibitishaji Mpaka Msimamizi atakapokagua nyaraka zako.' 
+                      : 'You registered successfully as a Specialist! Your profile starts unverified until an Admin verifies your credentials in the administrator portal.');
+                  } else {
+                    // Register as customer
+                    const activeProf = {
+                      name: regName,
+                      phone: regPhone,
+                      email: regEmail,
+                      location: regLocation
+                    };
+
+                    setUserProfile(activeProf);
+                    setUserRole('customer');
+                    localStorage.setItem('ec_user_profile', JSON.stringify(activeProf));
+                    localStorage.setItem('ec_user_role', 'customer');
+
+                    alert(language === 'sw' 
+                      ? 'Sajili yako imekamilika kikamilifu!' 
+                      : 'Client Registration Completed Successfully!');
+                  }
+
+                  // Clean inputs & close
+                  setRegName('');
+                  setRegEmail('');
+                  setRegPhone('');
+                  setRegCertifications('');
+                  setRegBio('');
+                  setShowAuthModal(false);
+                  setActiveTab('find');
+                }} className="space-y-3.5">
+                  
+                  {/* Essential Info fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-slate-400">Full Name</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={regName}
+                        onChange={(e) => setRegName(e.target.value)}
+                        placeholder="e.g. Yohana Massero"
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-700 font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-slate-400">Email Address</label>
+                      <input 
+                        type="email" 
+                        required
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="e.g. yohana@gmail.com"
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-700 font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-slate-400">Phone Number</label>
+                      <input 
+                        type="tel" 
+                        required
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="e.g. +255 712 111 222"
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-700 font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-slate-400">Primary Station Region</label>
+                      <select 
+                        value={regLocation}
+                        onChange={(e) => setRegLocation(e.target.value)}
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
+                      >
+                        <option value="Dar es Salaam">Dar es Salaam</option>
+                        <option value="Mwanza">Mwanza</option>
+                        <option value="Arusha">Arusha</option>
+                        <option value="Dodoma">Dodoma</option>
+                        <option value="Mbeya">Mbeya</option>
+                        <option value="Zanzibar">Zanzibar</option>
+                        <option value="Morogoro">Morogoro</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Specialist detailed parameters */}
+                  {regRole === 'engineer' && (
+                    <div className="space-y-3 p-3 bg-slate-950/60 rounded-xl border border-white/5 animate-fade-in text-xs">
+                      <div className="grid grid-cols-2 gap-35">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-mono uppercase text-slate-400">Engineering Specialty</label>
+                          <select
+                            value={regCategory}
+                            onChange={(e) => setRegCategory(e.target.value as Category)}
+                            className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                          >
+                            {['Electrical', 'Mechanical', 'Civil', 'Biomedical', 'Solar', 'Automation', 'HVAC', 'Maintenance', 'Chemical', 'Mining', 'Agricultural', 'Telecom & ICT', 'Water Resources', 'Marine', 'Geotechnical', 'Environmental'].map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-mono uppercase text-slate-400">Years of Experience</label>
+                          <input 
+                            type="number" 
+                            min="1"
+                            max="50"
+                            required
+                            value={regExperience}
+                            onChange={(e) => setRegExperience(e.target.value)}
+                            className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium text-center"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase text-slate-400">Submtted Certificate कॉपी / Titles list</label>
+                        <input 
+                          type="text" 
+                          value={regCertifications}
+                          onChange={(e) => setRegCertifications(e.target.value)}
+                          placeholder="e.g. B.Sc. Electrical Engineering (UDSM), Solar Installation License B"
+                          className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-700 font-medium"
+                        />
+                        <p className="text-[9px] text-slate-500">Provide comma-separated listings of certificates for administrative verification.</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase text-slate-400">Personal Tagline & Biography Summary</label>
+                        <textarea
+                          rows={2}
+                          value={regBio}
+                          onChange={(e) => setRegBio(e.target.value)}
+                          placeholder="Introduce your special calibration tools or technical repair achievements..."
+                          className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-700 resize-none font-medium"
+                        />
+                      </div>
+
+                      <div className="p-2 border border-dashed border-white/10 bg-slate-900 rounded flex items-center justify-between text-[10px] font-mono text-slate-400">
+                        <span>📁 Attach Scanned PDF Degrees copy:</span>
+                        <span className="text-emerald-450 font-bold">✓ credentials_verified.pdf</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full mt-2 py-3 bg-emerald-500 hover:bg-emerald-450 text-slate-950 font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg hover:brightness-110"
+                  >
+                    Submit Registration & Log In
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );
