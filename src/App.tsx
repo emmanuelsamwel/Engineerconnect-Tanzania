@@ -521,11 +521,11 @@ export default function App() {
           {/* Logo Brand */}
           <div className="flex items-center space-x-2">
             <div className="p-2 bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-500 rounded-xl shadow border border-white/10">
-              <span className="font-mono text-slate-950 text-sm font-black">EC</span>
+              <span className="font-mono text-slate-950 text-sm font-black">B</span>
             </div>
             <div>
               <div className="flex items-center space-x-1">
-                <span className="text-sm font-black tracking-tight text-white">EngineerConnect</span>
+                <span className="text-sm font-black tracking-tight text-white">Builda</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">Tanzania</span>
               </div>
               <p className="text-[10px] text-slate-450 leading-none">{t.tagline}</p>
@@ -1004,7 +1004,7 @@ export default function App() {
                                     onClick={() => {
                                       setSelectedEngineer(eng);
                                       setHireTitle(`Inquiry: ${post.title}`);
-                                      setHireDesc(`Hello, I saw your completed showcase of "${post.title}" on the EngineerConnect Work Feed and would like to hire you for a similar engineering project in my area.`);
+                                      setHireDesc(`Hello, I saw your completed showcase of "${post.title}" on the Builda Work Feed and would like to hire you for a similar engineering project in my area.`);
                                       setHireLoc(userProfile?.location || post.location);
                                       setHireUrgency('Medium');
                                       setShowHiringForm(true);
@@ -1913,8 +1913,8 @@ export default function App() {
       {/* Persistent global footer credits */}
       <footer className="bg-slate-900/45 py-3.5 border-t border-white/5 text-center text-[10px] text-slate-600 font-mono">
         {userRole === 'admin' 
-          ? "Platform EngineerConnect Tanzania is fully compatible with ERB caps regulation guidelines. Active CMM logs." 
-          : "Secure Professional Engineering Marketplace • EngineerConnect Tanzania © 2026"}
+          ? "Platform Builda Tanzania is fully compatible with ERB caps regulation guidelines. Active CMM logs." 
+          : "Secure Professional Engineering Marketplace • Builda Tanzania © 2026"}
       </footer>
 
       {/* Modern Interactive Authentication and Registration Overlay Modal */}

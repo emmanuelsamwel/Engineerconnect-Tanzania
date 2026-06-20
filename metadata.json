@@ -1,5 +1,5 @@
 {
-  "name": "EngineerConnect Tanzania",
+  "name": "Builda",
   "description": "A comprehensive web application connecting customers with verified engineers and technical specialists in Tanzania, featuring Swahili support, AI troubleshooting diagnosis, real-time chat, payments, and equipment maintenance scheduling.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

@@ -85,11 +85,11 @@ export default function SplashView({ language, setLanguage, onComplete }: Splash
       <div className="flex items-center justify-between w-full max-w-md mx-auto z-10 pt-4">
         <div className="flex items-center space-x-2">
           <div className="p-2.5 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-xl shadow-lg ring-1 ring-white/10">
-            <span className="font-mono text-xl font-black tracking-tighter text-slate-950">EC</span>
+            <span className="font-mono text-xl font-black tracking-tighter text-slate-950">B</span>
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-300 via-yellow-200 to-blue-300 bg-clip-text text-transparent">
-              EngineerConnect
+              Builda
             </h1>
             <p className="text-[9px] font-mono tracking-widest text-emerald-400">TANZANIA</p>
           </div>

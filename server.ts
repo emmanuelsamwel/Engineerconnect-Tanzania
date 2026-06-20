@@ -41,7 +41,7 @@ async function startServer() {
       }
 
       const prompt = `
-You are the professional AI Technical Diagnosis Assistant for "EngineerConnect Tanzania", a leading platform connecting Tanzanian clients with certified, high-quality engineers.
+You are the professional AI Technical Diagnosis Assistant for "Builda Tanzania", a leading platform connecting Tanzanian clients with certified, high-quality engineers.
 The client has provided the following description of their engineering or technical problem:
 Description: "${description}"
 Category context (if any): "${categoryContext || 'General / Unknown'}"

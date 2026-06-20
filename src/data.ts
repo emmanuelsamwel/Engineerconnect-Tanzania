@@ -165,7 +165,7 @@ export const INITIAL_REQUESTS: ServiceRequest[] = [
 
 export const TRANSLATIONS = {
   en: {
-    title: "EngineerConnect",
+    title: "Builda",
     tagline: "Connecting Tanzania with Verified Engineering Professionals",
     swahili: "Swahili",
     english: "English",
@@ -219,7 +219,7 @@ export const TRANSLATIONS = {
     complaintsText: "Complaints & Arbitration Log",
   },
   sw: {
-    title: "EngineerConnect",
+    title: "Builda",
     tagline: "Kuunganisha Tanzania na Wahandisi na Mafundi Waliothibitishwa",
     swahili: "Kiswahili",
     english: "Kiingereza",
