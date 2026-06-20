@@ -535,14 +535,12 @@ export default function App() {
 
           {/* Combined Controls Row (Switch Roles Live + Lang + Auth) */}
           <div className="flex items-center space-x-2 w-full md:w-auto overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1 justify-start md:justify-end shrink-0">
-            
-            {/* Controller Hub Pill (Switch Roles Live) */}
+                      {/* Controller Hub Pill (Switch Roles Live) */}
             <div className="flex items-center space-x-1 bg-slate-950/80 p-1 rounded-full ring-1 ring-white/10 text-[9.5px] uppercase font-mono shrink-0">
               <span className="text-slate-500 px-1.5 select-none text-[8px] font-black">ACT AS:</span>
               {[
                 { id: 'customer', label: language === 'sw' ? 'Mteja' : 'Customer' },
-                { id: 'engineer', label: language === 'sw' ? 'Mhandisi' : 'Engineer' },
-                { id: 'admin', label: language === 'sw' ? 'Msimamizi' : 'Admin' }
+                { id: 'engineer', label: language === 'sw' ? 'Mhandisi' : 'Engineer' }
               ].map((role) => (
                 <button
                   key={role.id}
@@ -550,7 +548,6 @@ export default function App() {
                     setUserRole(role.id as UserRole);
                     localStorage.setItem('ec_user_role', role.id);
                     if (role.id === 'customer' && activeTab === 'admin') setActiveTab('find');
-                    if (role.id === 'admin') setActiveTab('admin');
                   }}
                   className={`px-2.5 py-1 rounded-full transition-all text-[9px] font-black ${
                     userRole === role.id 
@@ -586,7 +583,7 @@ export default function App() {
                   onClick={logout}
                   className="px-2.5 py-1.5 rounded-full bg-slate-800 border border-white/5 text-rose-450 hover:text-rose-400 text-[9.5px] font-mono tracking-wider transition-all font-bold uppercase shrink-0"
                 >
-                  [Exit]
+                  {language === 'sw' ? 'Ondoka' : 'Sign Out'}
                 </button>
               </div>
             ) : (
@@ -1978,9 +1975,12 @@ export default function App() {
                   <input 
                     type="text"
                     id="signin-identity"
-                    placeholder="e.g. amina@engineerconnect.co.tz"
+                    placeholder="e.g. admin@builda.co.tz or custom email"
                     className="w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600 font-medium"
                   />
+                  <p className="text-[10px] text-slate-500 italic mt-0.5">
+                    💡 {language === 'sw' ? 'Ingiza neno "admin" kwenye barua pepe kuingia kama msimamizi.' : 'Type "admin" anywhere in email to authenticate as Admin.'}
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Password / verification pin</label>
