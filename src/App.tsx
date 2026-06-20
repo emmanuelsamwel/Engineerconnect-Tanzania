@@ -15,15 +15,92 @@ import {
   Globe, Briefcase, Zap, AlertTriangle, ShieldCheck, 
   MessageSquare, Settings, CreditCard, Star, Search, 
   MapPin, Plus, Sparkles, Building, ChevronRight, CheckCircle, Smartphone,
-  Camera, Video, Image as ImageIcon, Trash2, Film, Paperclip
+  Camera, Video, Image as ImageIcon, Trash2, Film, Paperclip, X
 } from 'lucide-react';
+
+const playWhatsAppChime = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    
+    const osc1 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    osc1.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    osc1.type = 'sine';
+    // WhatsApp web sound has a short double chime (frequency shift from 587Hz to 1174Hz)
+    osc1.frequency.setValueAtTime(587.33, now); 
+    osc1.frequency.setValueAtTime(1174.66, now + 0.08); 
+    
+    gainNode.gain.setValueAtTime(0.06, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    
+    osc1.start(now);
+    osc1.stop(now + 0.3);
+  } catch (err) {
+    console.warn('AudioContext failed:', err);
+  }
+};
+
+const SIMULATED_POST_TEMPLATES = [
+  {
+    title: { en: "Grid Solar Optimizer Calibration at Kiwira Coal Mine", sw: "Urekebishaji wa Kifaa cha Kusawazisha Solar kwenye Mgodi wa Kiwira" },
+    desc: { en: "Configured intelligent grid tie limiters on 150kW monocrystalline bank. Drastically dropped auxiliary power bills by 24%. Tests run clean with peak sun cycle.", sw: "Tumeweka vidhibiti vya kiakili vya grid tie kwenye benki ya 150kW. Tumepunguza gharama za umeme wa kusaidia kwa 24%. Vipimo vimeenda vizuri kwenye jua kali." },
+    category: "Solar" as Category,
+    imageUrl: "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80"
+  },
+  {
+    title: { en: "Boiler Pressure Valve overhaul at Arusha Beverage factory", sw: "Ukarabati mkubwa wa vali ya shinikizo la Boiler kwenye kiwanda cha vinywaji Arusha" },
+    desc: { en: "Successfully replaced faulty safety pressure diaphragm in main steam chamber. Sealed high-voltage steam joints with fire-hardened composite sealants.", sw: "Tumefanikiwa kubadilisha diaphragm ya usalama ya vali kwenye chumba kuu cha mvuke. Tumefunga viungio vyenye joto kali kwa kutumia gundi maalum." },
+    category: "Mechanical" as Category,
+    imageUrl: "https://images.unsplash.com/photo-1537462715879-360eeb61a0bc?w=600&auto=format&fit=crop&q=80"
+  },
+  {
+    title: { en: "Cleanroom HEPA filtration array upgrade at Bugando ICU Block", sw: "Maboresho ya mfumo wa kuchuja hewa wa HEPA kwenye ICU ya Bugando" },
+    desc: { en: "Installed three high-density medical grade filters for sterile air circulation. Air exchange cycles calibrated to WHO guidelines. Zero air pressure drops.", sw: "Tumeweka vichujio vitatu vya daraja la matibabu HEPA kwa usambazaji salama wa hewa. Mzunguko wa hewa umesawazishwa kufuatana na miongozo ya WHO." },
+    category: "Biomedical" as Category,
+    imageUrl: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=600&auto=format&fit=crop&q=80"
+  },
+  {
+    title: { en: "Subterranean foundation waterproofing at Nyerere square expansion", sw: "Mihimili ya kuzuia maji chini ya ardhi kwenye upanuzi wa uwanja wa Nyerere" },
+    desc: { en: "Laid durable crystalline concrete seal barriers on double-rebar substructures. Complete prevention of rain moisture seepage achieved.", sw: "Tumeweka vizuizi imara vya kuzuia maji kwenye zege la msingi chini ya ardhi. Kuzuia kabisa unyevu wa mvua kupenya." },
+    category: "Civil" as Category,
+    imageUrl: "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?w=600&auto=format&fit=crop&q=80"
+  }
+];
 
 export default function App() {
   // Global States
   const [language, setLanguage] = useState<Language>('en');
   const [screen, setScreen] = useState<Screen>('dashboard');
   const [userRole, setUserRole] = useState<UserRole>('guest');
-  const [userProfile, setUserProfile] = useState<{ name: string; phone: string; email?: string; location: string; engineerId?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; phone: string; email?: string; location: string; engineerId?: string; wallpaper?: string; locationLink?: string } | null>(null);
+
+  // Edit Profile Form States
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editProfileName, setEditProfileName] = useState('');
+  const [editProfilePhone, setEditProfilePhone] = useState('');
+  const [editProfileEmail, setEditProfileEmail] = useState('');
+  const [editProfileLocation, setEditProfileLocation] = useState('');
+  const [editProfileWallpaper, setEditProfileWallpaper] = useState('');
+  const [editProfileLocationLink, setEditProfileLocationLink] = useState('');
+
+  // WhatsApp-style Notification states
+  const [notifications, setNotifications] = useState<{
+    id: string;
+    senderName: string;
+    senderAvatar: string;
+    title: string;
+    message: string;
+    time: string;
+    postId?: string;
+    category?: string;
+  }[]>([]);
+  const [enableLiveSimulation, setLiveSimulation] = useState<boolean>(true);
 
   // Entities
   const [engineers, setEngineers] = useState<Engineer[]>(() => {
@@ -67,6 +144,62 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('ec_client_jobs', JSON.stringify(clientJobs));
   }, [clientJobs]);
+
+  // Automated background simulator of live engineer posts with WhatsApp notification popup
+  useEffect(() => {
+    if (!enableLiveSimulation) return;
+
+    const initialTimeout = setTimeout(() => {
+      triggerSimulation();
+    }, 15000);
+
+    const interval = setInterval(() => {
+      triggerSimulation();
+    }, 45000);
+
+    function triggerSimulation() {
+      const randomEng = INITIAL_ENGINEERS[Math.floor(Math.random() * INITIAL_ENGINEERS.length)];
+      const randomTemplate = SIMULATED_POST_TEMPLATES[Math.floor(Math.random() * SIMULATED_POST_TEMPLATES.length)];
+      
+      const newSimPost: WorkPost = {
+        id: `post_sim_${Date.now()}`,
+        engineerId: randomEng.id,
+        engineerName: randomEng.name,
+        engineerAvatar: randomEng.avatar,
+        engineerCategory: randomTemplate.category,
+        title: randomTemplate.title[language] || randomTemplate.title.en,
+        location: randomEng.location,
+        description: randomTemplate.desc.en,
+        descriptionSwahili: randomTemplate.desc.sw,
+        imageUrl: randomTemplate.imageUrl,
+        likes: Math.floor(Math.random() * 8) + 2,
+        likedByUser: false,
+        date: new Date().toISOString().split('T')[0],
+        comments: []
+      };
+
+      setPosts(prev => [newSimPost, ...prev]);
+
+      const simNotification = {
+        id: `notification_${Date.now()}`,
+        senderName: randomEng.name,
+        senderAvatar: randomEng.avatar,
+        title: language === 'sw' ? 'Mhandisi ameweka Kazi Mpya! 🟢' : 'Engineer posted a new project! 🟢',
+        message: randomTemplate.title[language] || randomTemplate.title.en,
+        time: language === 'sw' ? 'Sasa hivi' : 'Just now',
+        postId: newSimPost.id,
+        category: randomTemplate.category
+      };
+
+      setNotifications(prev => [simNotification, ...prev]);
+      playWhatsAppChime();
+    }
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [enableLiveSimulation, language]);
 
   // Client Job Board inputs
   const [showCreateJobForm, setShowCreateJobForm] = useState(false);
@@ -171,6 +304,44 @@ export default function App() {
     setUserProfile(null);
     setUserRole('guest');
     setScreen('dashboard');
+  };
+
+  const handleSaveProfile = () => {
+    if (!editProfileName.trim() || !editProfilePhone.trim()) {
+      alert(language === 'sw' ? 'Tafadhali jaza jina na namba ya simu.' : 'Please enter your name and phone number.');
+      return;
+    }
+
+    const updatedProfile = {
+      ...userProfile,
+      name: editProfileName,
+      phone: editProfilePhone,
+      email: editProfileEmail,
+      location: editProfileLocation,
+      wallpaper: editProfileWallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80',
+      locationLink: editProfileLocationLink || undefined
+    };
+
+    setUserProfile(updatedProfile);
+    localStorage.setItem('ec_user_profile', JSON.stringify(updatedProfile));
+    
+    // Also update any matching engineer profile if current user is an engineer
+    if (userRole === 'engineer' && userProfile?.engineerId) {
+      setEngineers(prev => prev.map(eng => {
+        if (eng.id === userProfile.engineerId) {
+          return {
+            ...eng,
+            name: editProfileName,
+            phone: editProfilePhone,
+            email: editProfileEmail,
+            location: editProfileLocation
+          };
+        }
+        return eng;
+      }));
+    }
+
+    setShowEditProfileModal(false);
   };
 
   // Social feed handlers
@@ -289,6 +460,21 @@ export default function App() {
     };
 
     setPosts(prev => [newPost, ...prev]);
+
+    // Dispatch WhatsApp real-time notification
+    const userNotification = {
+      id: `notification_${Date.now()}`,
+      senderName: activeEng.name,
+      senderAvatar: activeEng.avatar,
+      title: language === 'sw' ? 'Mradi Mpya Umechapishwa!' : 'New Project Showcase Posted!',
+      message: `${postTitle} (${postLocation || activeEng.location})`,
+      time: language === 'sw' ? 'Sasa hivi' : 'Just now',
+      postId: newPost.id,
+      category: postCategory
+    };
+    setNotifications(prev => [userNotification, ...prev]);
+    playWhatsAppChime();
+
     setPostTitle('');
     setPostLocation('');
     setPostDescEn('');
@@ -632,12 +818,34 @@ export default function App() {
               <span>{language === 'en' ? 'SW' : 'EN'}</span>
             </button>
 
-            {/* Auth section */}
+            {/* Auth section with Profile Customizer trigger on login */}
             {userProfile ? (
               <div className="flex items-center space-x-2 shrink-0">
-                <div className="text-right hidden sm:block">
-                  <p className="font-bold text-white text-[10px] leading-tight max-w-[90px] truncate">{userProfile.name}</p>
-                </div>
+                <button
+                  onClick={() => {
+                    setEditProfileName(userProfile.name);
+                    setEditProfilePhone(userProfile.phone || '');
+                    setEditProfileEmail(userProfile.email || '');
+                    setEditProfileLocation(userProfile.location || '');
+                    setEditProfileWallpaper(userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                    setEditProfileLocationLink(userProfile.locationLink || '');
+                    setShowEditProfileModal(true);
+                  }}
+                  title={language === 'sw' ? 'Badili Wasifu wako (Wallpaper & Links)' : 'Edit Profile, Wallpaper, & Location Links'}
+                  className="flex items-center space-x-2 bg-slate-800/90 hover:bg-slate-750 border border-emerald-500/30 hover:border-emerald-450 px-2.5 py-1 rounded-full text-slate-100 transition shadow cursor-pointer text-left group"
+                >
+                  <img
+                    src={userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80'}
+                    alt="cover"
+                    className="w-5 h-5 rounded-full object-cover border border-white/20 group-hover:scale-105 transition"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="text-left leading-none pr-1">
+                    <p className="font-bold text-white text-[10px] max-w-[85px] truncate group-hover:text-emerald-450 transition">{userProfile.name}</p>
+                    <span className="text-[7.5px] font-mono text-slate-450 group-hover:text-emerald-400 block mt-0.5 uppercase tracking-wider">{userRole} Settings</span>
+                  </div>
+                </button>
+
                 <button
                   onClick={logout}
                   className="px-2.5 py-1.5 rounded-full bg-slate-800 border border-white/5 text-rose-450 hover:text-rose-400 text-[9.5px] font-mono tracking-wider transition-all font-bold uppercase shrink-0"
@@ -726,43 +934,152 @@ export default function App() {
             />
           ) : (
             <>
-              {/* Find/Map section */}
+                {/* Find/Map section */}
               {activeTab === 'find' && (
                 <div className="space-y-6" id="find-view-stage">
                   
                   {/* Home Sub-Navigator Sub-tabs */}
-                  <div className="flex border-b border-white/5 pb-1 gap-4 overflow-x-auto scroller-hidden">
-                    <button
-                      onClick={() => setHomeSubTab('feed')}
-                      className={`pb-2.5 text-sm font-bold transition-all relative whitespace-nowrap ${
-                        homeSubTab === 'feed'
-                          ? 'text-emerald-400 border-b-2 border-emerald-500'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      📸 {language === 'sw' ? 'Kazi Zilizokamilika (Work Feed)' : 'Completed Work Feed'}
-                    </button>
-                    <button
-                      onClick={() => setHomeSubTab('jobs')}
-                      className={`pb-2.5 text-sm font-bold transition-all relative whitespace-nowrap ${
-                        homeSubTab === 'jobs'
-                          ? 'text-emerald-400 border-b-2 border-emerald-500'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      💼 {language === 'sw' ? 'Kazi za Wateja & Zabuni' : 'Client Bidding Board'}
-                    </button>
-                    <button
-                      onClick={() => setHomeSubTab('directory')}
-                      className={`pb-2.5 text-sm font-bold transition-all relative whitespace-nowrap ${
-                        homeSubTab === 'directory'
-                          ? 'text-emerald-400 border-b-2 border-emerald-500'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      👥 {language === 'sw' ? 'Wataalamu Walioidhinishwa' : 'Certified Specialists'}
-                    </button>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-1 gap-3">
+                    <div className="flex gap-4 overflow-x-auto scroller-hidden">
+                      <button
+                        onClick={() => setHomeSubTab('feed')}
+                        className={`pb-2.5 text-sm font-bold transition-all relative whitespace-nowrap ${
+                          homeSubTab === 'feed'
+                            ? 'text-emerald-400 border-b-2 border-emerald-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        📸 {language === 'sw' ? 'Kazi Zilizokamilika (Work Feed)' : 'Completed Work Feed'}
+                      </button>
+                      <button
+                        onClick={() => setHomeSubTab('jobs')}
+                        className={`pb-2.5 text-sm font-bold transition-all relative whitespace-nowrap ${
+                          homeSubTab === 'jobs'
+                            ? 'text-emerald-400 border-b-2 border-emerald-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        💼 {language === 'sw' ? 'Kazi za Wateja & Zabuni' : 'Client Bidding Board'}
+                      </button>
+                      <button
+                        onClick={() => setHomeSubTab('directory')}
+                        className={`pb-2.5 text-sm font-bold transition-all relative whitespace-nowrap ${
+                          homeSubTab === 'directory'
+                            ? 'text-emerald-400 border-b-2 border-emerald-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        👥 {language === 'sw' ? 'Wataalamu Walioidhinishwa' : 'Certified Specialists'}
+                      </button>
+                    </div>
+
+                    {/* WhatsApp Simulator Control Indicator */}
+                    <div className="flex items-center space-x-2 self-start sm:self-auto bg-slate-900/60 border border-white/5 px-2.5 py-1 rounded-full text-[10px] text-slate-400 font-mono transition">
+                      <span className={`w-1.5 h-1.5 rounded-full ${enableLiveSimulation ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+                      <span>{language === 'sw' ? 'Arifa za WhatsApp' : 'WhatsApp Live Alerts'}: {enableLiveSimulation ? 'ON' : 'OFF'}</span>
+                      <button
+                        onClick={() => setLiveSimulation(!enableLiveSimulation)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight transition ${
+                          enableLiveSimulation 
+                            ? 'bg-rose-500/20 text-rose-450 hover:bg-rose-500/30' 
+                            : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                        }`}
+                      >
+                        {enableLiveSimulation ? (language === 'sw' ? 'Zima' : 'Stop') : (language === 'sw' ? 'Washa' : 'Start')}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Dynamic Personalized Profile Dashboard & Custom Wallpaper Banner */}
+                  {userProfile && (
+                    <div className="relative overflow-hidden rounded-2xl bg-slate-900 border border-white/5 shadow-2xl transition-all duration-300 hover:border-emerald-500/20">
+                      {/* The Wallpaper (customizable cover) */}
+                      <div className="relative h-24 sm:h-32 w-full overflow-hidden">
+                        <img 
+                          src={userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1000&auto=format&fit=crop&q=80'} 
+                          alt="user wallpaper" 
+                          className="w-full h-full object-cover brightness-75 transition-transform duration-700 hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
+                      </div>
+
+                      {/* Profile details overlay */}
+                      <div className="p-4 sm:p-5 pt-0 -mt-10 sm:-mt-12 relative flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                        <div className="flex items-end space-x-3.5">
+                          {/* Circular initial avatar preview */}
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-slate-800 shadow-xl flex items-center justify-center font-black text-2xl sm:text-3xl text-gradient bg-clip-text text-transparent bg-gradient-to-tr from-emerald-400 to-teal-400 select-none overflow-hidden shrink-0">
+                            {userProfile.name ? userProfile.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">
+                                {userProfile.name}
+                              </h3>
+                              <span className="text-[8px] font-black tracking-wider text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded font-mono uppercase">
+                                {userRole === 'customer' ? (language === 'sw' ? 'Mteja' : 'Client Profile') : 
+                                 userRole === 'engineer' ? (language === 'sw' ? 'Mhandisi Walioidhinishwa' : 'Specialist Portfolio') : 
+                                 userRole === 'admin' ? (language === 'sw' ? 'Msimamizi' : 'Admin Authority') :
+                                 (language === 'sw' ? 'Mgeni' : 'Guest Account')}
+                              </span>
+                            </div>
+
+                            <p className="text-[10px] sm:text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
+                              <span>📍 {userProfile.location}</span>
+                              {userProfile.email && <span className="text-slate-500">• {userProfile.email}</span>}
+                              <span className="text-slate-500">• {userProfile.phone}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Interactive Profile controls */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Optional location link button */}
+                          {userProfile.locationLink ? (
+                            <a 
+                              href={userProfile.locationLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold text-[10.5px] border border-emerald-500/20 transition flex items-center justify-center gap-1 font-mono shrink-0"
+                            >
+                              <span>📍</span> {language === 'sw' ? 'Ramani ya Ofisi' : 'Open Workspace Map'}
+                            </a>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditProfileName(userProfile.name);
+                                setEditProfilePhone(userProfile.phone || '');
+                                setEditProfileEmail(userProfile.email || '');
+                                setEditProfileLocation(userProfile.location || '');
+                                setEditProfileWallpaper(userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                                setEditProfileLocationLink(userProfile.locationLink || '');
+                                setShowEditProfileModal(true);
+                              }}
+                              className="py-1.5 px-3 rounded-lg bg-slate-950/40 hover:bg-slate-950/70 text-slate-450 hover:text-slate-350 font-bold text-[10.5px] border border-white/5 transition flex items-center justify-center gap-1 font-mono text-left"
+                            >
+                              <span>➕</span> {language === 'sw' ? 'Weka Kiungo cha Ramani' : 'Add GPS/Map Link'}
+                            </button>
+                          )}
+
+                          <button 
+                            onClick={() => {
+                              setEditProfileName(userProfile.name);
+                              setEditProfilePhone(userProfile.phone || '');
+                              setEditProfileEmail(userProfile.email || '');
+                              setEditProfileLocation(userProfile.location || '');
+                              setEditProfileWallpaper(userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                              setEditProfileLocationLink(userProfile.locationLink || '');
+                              setShowEditProfileModal(true);
+                            }}
+                            className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-[10.5px] border border-white/10 transition flex items-center justify-center gap-1"
+                          >
+                            <span>✏️</span> {language === 'sw' ? 'Hariri Wasifu & Wallpaper' : 'Edit Design & Info'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Category filters */}
                   <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1 bg-slate-950/20 rounded-xl">
@@ -1055,7 +1372,7 @@ export default function App() {
                             }[post.engineerCategory] || 'text-slate-400 bg-slate-500/10 border-slate-500/20';
 
                             return (
-                              <div key={post.id} className="p-5 rounded-2xl bg-slate-900 border border-white/5 space-y-4 shadow-xl">
+                              <div key={post.id} id={post.id} className="p-5 rounded-2xl bg-slate-900 border border-white/5 space-y-4 shadow-xl scroll-mt-24 transition-all duration-500">
                                 
                                 {/* Post Author Header */}
                                 <div className="flex items-center justify-between">
@@ -1921,6 +2238,95 @@ export default function App() {
                               )}
                             </div>
 
+                            {/* Connection Comments & Activity Logs section */}
+                            <div className="border-t border-white/5 pt-3.5 mt-2.5 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                                  <span>💬</span> {language === 'sw' ? 'Kumbukumbu & Maoni na Wahusika' : 'Connection Comments & Activity logs'} 
+                                  <span className="bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] font-black text-emerald-400 font-mono">
+                                    {((req as any).comments || []).length}
+                                  </span>
+                                </h5>
+                              </div>
+
+                              {/* Comment List */}
+                              {((req as any).comments || []).length > 0 ? (
+                                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                  {((req as any).comments || []).map((comm: any) => (
+                                    <div key={comm.id} className="p-2 py-2.5 rounded-lg bg-slate-950/45 border border-white/5 space-y-1 text-[10.5px]">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-extrabold text-slate-205 flex items-center gap-1">
+                                          <span>👤</span> {comm.userName} 
+                                          {comm.role && (
+                                            <span className={`text-[8px] font-mono font-bold tracking-tight uppercase px-1 py-0.1 select-none rounded ${
+                                              comm.role === 'engineer' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/10' :
+                                              comm.role === 'admin' ? 'bg-blue-500/15 text-blue-400 border border-blue-500/10' :
+                                              'bg-emerald-500/15 text-emerald-400 border border-emerald-500/10'
+                                            }`}>
+                                              {comm.role}
+                                            </span>
+                                          )}
+                                        </span>
+                                        <span className="text-[8px] font-mono text-slate-550">{comm.time}</span>
+                                      </div>
+                                      <p className="text-slate-300 font-mono leading-relaxed pl-1">
+                                        "{comm.text}"
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-slate-500 italic font-mono pl-1">
+                                  {language === 'sw' ? 'Hakuna kumbukumbu bado. Andika maoni yako hapa chini.' : 'No connection commentary logged. Leave a note below.'}
+                                </p>
+                              )}
+
+                              {/* Comment Input Form */}
+                              <form 
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const form = e.currentTarget;
+                                  const input = form.elements.namedItem(`comment-con-${req.id}`) as HTMLInputElement;
+                                  const text = input?.value.trim();
+                                  if (!text) return;
+                                  
+                                  setRequests(prev => prev.map(r => {
+                                    if (r.id === req.id) {
+                                      const existing = (r as any).comments || [];
+                                      const brandNew = {
+                                        id: `conn_comm_${Date.now()}`,
+                                        userName: userProfile?.name || (userRole === 'admin' ? 'Chief Admin' : 'Guest Account'),
+                                        text,
+                                        time: 'Just now',
+                                        role: userRole
+                                      };
+                                      return {
+                                        ...r,
+                                        comments: [...existing, brandNew]
+                                      };
+                                    }
+                                    return r;
+                                  }));
+                                  
+                                  if (input) input.value = '';
+                                }}
+                                className="flex gap-2"
+                              >
+                                <input
+                                  type="text"
+                                  name={`comment-con-${req.id}`}
+                                  placeholder={language === 'sw' ? 'Log maendeleo ya mkataba sasa...' : 'Log work progress or add connection update...'}
+                                  className="flex-1 bg-slate-950/60 border border-white/10 rounded-lg p-2.5 text-[10.5px] text-white focus:outline-none focus:border-emerald-500 placeholder-slate-650 font-mono"
+                                />
+                                <button
+                                  type="submit"
+                                  className="bg-emerald-500 hover:bg-emerald-450 active:scale-95 text-slate-950 font-black text-[10.5px] px-3.5 rounded-lg transition"
+                                >
+                                  {language === 'sw' ? 'Tuma' : 'Send'}
+                                </button>
+                              </form>
+                            </div>
+
                           </div>
                         );
                       })}
@@ -2480,6 +2886,289 @@ export default function App() {
                 </form>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp-Style Real-time Toast Alerts Overlay */}
+      <div className="fixed bottom-4 right-4 z-[9999] max-w-sm w-full space-y-3 pointer-events-none">
+        {notifications.map((notif) => (
+          <div
+            key={notif.id}
+            className="bg-slate-900 border-l-4 border-emerald-500 text-slate-100 rounded-xl shadow-2xl p-4 flex flex-col space-y-3 pointer-events-auto transition-all duration-300 relative overflow-hidden backdrop-blur-md bg-opacity-95 border border-white/10 animate-fade-in hover:translate-y-[-2px] tracking-wide"
+          >
+            {/* WhatsApp notification top header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <img
+                  src={notif.senderAvatar}
+                  alt={notif.senderName}
+                  className="w-10 h-10 rounded-full object-cover border border-emerald-500/20 shadow-inner"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono uppercase">
+                      💬 WA Group Chat
+                    </span>
+                    <span className="text-[9px] text-slate-500 font-mono">{notif.time}</span>
+                  </div>
+                  <h4 className="font-extrabold text-xs text-slate-100 mt-1 flex items-center gap-1">
+                    {notif.senderName}
+                    <span className="text-emerald-400 text-[10px]" title="Double Tick Sent">✔✔</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-300 font-bold mt-1 tracking-tight leading-snug">
+                    {notif.title}
+                  </p>
+                  <p className="text-[10px] text-slate-400 italic truncate mt-1 bg-slate-950/40 p-2 rounded border border-white/5 font-mono">
+                    {notif.message}
+                  </p>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                }}
+                className="text-slate-500 hover:text-slate-300 p-1 rounded-full hover:bg-white/5 transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Quick Interactive Actions */}
+            <div className="flex gap-2 border-t border-white/5 pt-2">
+              <button
+                onClick={() => {
+                  setActiveTab('find');
+                  setHomeSubTab('feed');
+                  setTimeout(() => {
+                    const el = document.getElementById(notif.postId || '');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      el.classList.add('ring-2', 'ring-emerald-500', 'bg-emerald-950/20');
+                      setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500', 'bg-emerald-950/20'), 3500);
+                    }
+                  }, 200);
+                  // Dismiss
+                  setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                }}
+                className="flex-1 bg-slate-950 hover:bg-slate-800 text-center py-1.5 rounded text-emerald-400 font-bold text-[10px] border border-emerald-500/20 hover:border-emerald-500/40 transition flex items-center justify-center gap-1"
+              >
+                <span>👁️</span> {language === 'sw' ? 'Tazama Mradi' : 'View Project'}
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (notif.postId) {
+                    const saluteComment = language === 'sw' ? 'Kazi Safi sana Kaka! 👏🔥' : 'Excellent work engineer! Very clean. 👏🔥';
+                    setPosts(prev => prev.map(p => {
+                      if (p.id === notif.postId) {
+                        return {
+                          ...p,
+                          likes: p.likes + 1,
+                          comments: [
+                            ...p.comments,
+                            {
+                              id: `comment_${Date.now()}`,
+                              userName: userProfile?.name || (userRole === 'engineer' ? 'Eng. Anonymous' : 'Guest Contractor'),
+                              text: saluteComment,
+                              time: 'Just now',
+                              isVerifiedReply: userRole === 'engineer'
+                            }
+                          ]
+                        };
+                      }
+                      return p;
+                    }));
+                  }
+                  // Dismiss
+                  setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                }}
+                className="flex-1 bg-slate-950 hover:bg-slate-800 text-center py-1.5 rounded text-slate-300 font-bold text-[10px] border border-white/5 hover:border-white/10 transition flex items-center justify-center gap-1"
+              >
+                <span>🤝</span> {language === 'sw' ? 'Pongeza' : 'Salute / Wave'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Interactive Edit Profile Modal with Live Wallpaper Selector & Custom Map Link Overlay */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md animate-fade-in" id="edit-profile-modal-overlay">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-scale-up" id="edit-profile-modal-content">
+            
+            {/* Live Wallpaper Wallpaper Preview */}
+            <div className="relative h-28 w-full overflow-hidden flex-shrink-0">
+              <img 
+                src={editProfileWallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80'} 
+                alt="Live cover preview" 
+                className="w-full h-full object-cover brightness-75 transition-all duration-300"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-black/40" />
+              <button 
+                onClick={() => setShowEditProfileModal(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white transition p-1.5 bg-slate-950/60 rounded-full border border-white/10 font-mono text-xs w-7 h-7 flex items-center justify-center hover:bg-slate-900"
+              >
+                ✕
+              </button>
+              
+              <div className="absolute bottom-3 left-4 flex items-end space-x-3">
+                <div className="w-12 h-12 rounded-xl bg-slate-950 border border-white/20 flex items-center justify-center text-xl font-black text-emerald-450 shadow">
+                  {editProfileName ? editProfileName.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-white text-xs">{language === 'sw' ? 'Hakiki Karatasi la Ukuta' : 'Live Cover Preview'}</h4>
+                  <p className="text-[9px] text-slate-300 font-mono tracking-wider truncate max-w-[280px]">
+                    {editProfileWallpaper ? editProfileWallpaper : 'Default Grid Pattern'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Fields body (Scrollable) */}
+            <div className="p-5 md:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">{language === 'sw' ? 'Jina Kamili' : 'Full Name'}</label>
+                <input 
+                  type="text"
+                  value={editProfileName}
+                  onChange={(e) => setEditProfileName(e.target.value)}
+                  placeholder="e.g. Eng. Amina Shehe"
+                  className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium font-sans"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">{language === 'sw' ? 'Namba ya Simu' : 'Phone Number'}</label>
+                  <input 
+                    type="text"
+                    value={editProfilePhone}
+                    onChange={(e) => setEditProfilePhone(e.target.value)}
+                    placeholder="e.g. +255 765 990 120"
+                    className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">{language === 'sw' ? 'Barua Pepe' : 'Email Address'}</label>
+                  <input 
+                    type="email"
+                    value={editProfileEmail}
+                    onChange={(e) => setEditProfileEmail(e.target.value)}
+                    placeholder="e.g. amina@builda.co.tz"
+                    className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-sans"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">{language === 'sw' ? 'Mji / Mkoa wako' : 'City / General Region'}</label>
+                <select 
+                  value={editProfileLocation}
+                  onChange={(e) => setEditProfileLocation(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium font-sans"
+                >
+                  <option value="Dar es Salaam">Dar es Salaam</option>
+                  <option value="Mwanza">Mwanza</option>
+                  <option value="Arusha">Arusha</option>
+                  <option value="Dodoma">Dodoma</option>
+                  <option value="Mbeya">Mbeya</option>
+                  <option value="Zanzibar">Zanzibar</option>
+                  <option value="Morogoro">Morogoro</option>
+                </select>
+              </div>
+
+              {/* Map Location Link (option but active) */}
+              <div className="space-y-1 font-sans">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">
+                    📍 {language === 'sw' ? 'Kiungo cha Ramani (Sio Lazima)' : 'Workspace GPS/Map Link (Optional)'}
+                  </label>
+                  <span className="text-[8px] font-mono text-emerald-400 bg-emerald-500/10 px-1 py-0.2 rounded font-black">OPTIONAL</span>
+                </div>
+                <input 
+                  type="url"
+                  value={editProfileLocationLink}
+                  onChange={(e) => setEditProfileLocationLink(e.target.value)}
+                  placeholder="e.g. https://maps.google.com/?q=Dar+Es+Salaam"
+                  className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-650 font-mono"
+                />
+                <p className="text-[9px] text-slate-500 italic mt-0.5 pl-1 font-sans">
+                  💡 {language === 'sw' ? 'Weka kiungo chako cha ofisi au makazi kutoka Ramani ya Google.' : 'Provide your Google Maps coordinates, shared address or business page link.'}
+                </p>
+              </div>
+
+              {/* Cover Wallpaper Customize */}
+              <div className="space-y-2 border-t border-white/5 pt-3">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">
+                    🖼️ {language === 'sw' ? 'Chagua Karatasi la Ukuta' : 'Profile Cover Wallpaper'}
+                  </label>
+                </div>
+
+                {/* Cover Wallpaper presets grid */}
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { name: 'Emerald', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80' },
+                    { name: 'Deep Blue', url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80' },
+                    { name: 'Slate Clean', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80' },
+                    { name: 'Cyber Grid', url: 'https://images.unsplash.com/photo-1618005131359-30e2031f01c7?w=600&auto=format&fit=crop&q=80' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => setEditProfileWallpaper(preset.url)}
+                      className={`relative h-12 rounded-lg overflow-hidden border transition ${
+                        editProfileWallpaper === preset.url 
+                          ? 'border-emerald-400 scale-[1.02] ring-1 ring-emerald-500' 
+                          : 'border-white/5 hover:border-white/20'
+                      }`}
+                    >
+                      <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <div className="absolute inset-0 bg-black/60 hover:bg-black/40 transition flex items-center justify-center">
+                        <span className="text-[8px] font-bold text-white font-mono uppercase">{preset.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom url option */}
+                <div className="space-y-1 mt-2.5">
+                  <label className="text-[9px] font-mono uppercase text-slate-500">{language === 'sw' ? 'Au weka URL nyingine ya picha' : 'Or paste a custom image URL'}</label>
+                  <input 
+                    type="url"
+                    value={editProfileWallpaper}
+                    onChange={(e) => setEditProfileWallpaper(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Form Action Buttons */}
+            <div className="p-4 bg-slate-950 border-t border-white/10 flex gap-2.5 flex-shrink-0 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowEditProfileModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-white/10 text-slate-450 hover:text-white hover:bg-slate-900 transition font-bold"
+              >
+                {language === 'sw' ? 'Ghairi' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-550 text-slate-950 font-black uppercase tracking-wider shadow-lg hover:brightness-110 hover:scale-[1.01] transition-all"
+              >
+                {language === 'sw' ? 'Hifadhi Mabadiliko' : 'Save Changes'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
