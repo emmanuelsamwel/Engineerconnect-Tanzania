@@ -101,12 +101,50 @@ const SIMULATED_POST_TEMPLATES = [
   }
 ];
 
+const compressAndResizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = (err) => reject(err);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function App() {
   // Global States
   const [language, setLanguage] = useState<Language>('en');
   const [screen, setScreen] = useState<Screen>('dashboard');
   const [userRole, setUserRole] = useState<UserRole>('guest');
-  const [userProfile, setUserProfile] = useState<{ name: string; phone: string; email?: string; location: string; engineerId?: string; wallpaper?: string; locationLink?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; phone: string; email?: string; location: string; engineerId?: string; wallpaper?: string; avatar?: string; locationLink?: string } | null>(null);
 
   // Edit Profile Form States
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -115,6 +153,9 @@ export default function App() {
   const [editProfileEmail, setEditProfileEmail] = useState('');
   const [editProfileLocation, setEditProfileLocation] = useState('');
   const [editProfileWallpaper, setEditProfileWallpaper] = useState('');
+  const [editProfileAvatar, setEditProfileAvatar] = useState('');
+  const [dragAvatarActive, setDragAvatarActive] = useState(false);
+  const [dragWallpaperActive, setDragWallpaperActive] = useState(false);
   const [editProfileLocationLink, setEditProfileLocationLink] = useState('');
 
   // WhatsApp-style Notification states
@@ -354,6 +395,7 @@ export default function App() {
       email: editProfileEmail,
       location: editProfileLocation,
       wallpaper: editProfileWallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80',
+      avatar: editProfileAvatar || undefined,
       locationLink: editProfileLocationLink || undefined
     };
 
@@ -369,7 +411,8 @@ export default function App() {
             name: editProfileName,
             phone: editProfilePhone,
             email: editProfileEmail,
-            location: editProfileLocation
+            location: editProfileLocation,
+            avatar: editProfileAvatar || eng.avatar
           };
         }
         return eng;
@@ -881,6 +924,7 @@ export default function App() {
                     setEditProfileEmail(userProfile.email || '');
                     setEditProfileLocation(userProfile.location || '');
                     setEditProfileWallpaper(userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                    setEditProfileAvatar(userProfile.avatar || '');
                     setEditProfileLocationLink(userProfile.locationLink || '');
                     setShowEditProfileModal(true);
                   }}
@@ -888,7 +932,7 @@ export default function App() {
                   className="flex items-center space-x-2 bg-slate-800/90 hover:bg-slate-750 border border-emerald-500/30 hover:border-emerald-450 px-2.5 py-1 rounded-full text-slate-100 transition shadow cursor-pointer text-left group"
                 >
                   <img
-                    src={userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80'}
+                    src={userProfile.avatar || userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80'}
                     alt="cover"
                     className="w-5 h-5 rounded-full object-cover border border-white/20 group-hover:scale-105 transition"
                     referrerPolicy="no-referrer"
@@ -1065,8 +1109,17 @@ export default function App() {
                       <div className="p-4 sm:p-5 pt-0 -mt-10 sm:-mt-12 relative flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                         <div className="flex items-end space-x-3.5">
                           {/* Circular initial avatar preview */}
-                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-slate-800 shadow-xl flex items-center justify-center font-black text-2xl sm:text-3xl text-gradient bg-clip-text text-transparent bg-gradient-to-tr from-emerald-400 to-teal-400 select-none overflow-hidden shrink-0">
-                            {userProfile.name ? userProfile.name.charAt(0).toUpperCase() : 'U'}
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-slate-800 shadow-xl flex items-center justify-center font-black text-2xl sm:text-3xl text-gradient bg-clip-text text-transparent bg-gradient-to-tr from-emerald-400 to-teal-400 select-none overflow-hidden shrink-0 relative">
+                            {userProfile.avatar ? (
+                              <img
+                                src={userProfile.avatar}
+                                alt="user avatar"
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <span>{userProfile.name ? userProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+                            )}
                           </div>
 
                           <div className="space-y-1">
@@ -1110,6 +1163,7 @@ export default function App() {
                                 setEditProfileEmail(userProfile.email || '');
                                 setEditProfileLocation(userProfile.location || '');
                                 setEditProfileWallpaper(userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                                setEditProfileAvatar(userProfile.avatar || '');
                                 setEditProfileLocationLink(userProfile.locationLink || '');
                                 setShowEditProfileModal(true);
                               }}
@@ -1126,6 +1180,7 @@ export default function App() {
                               setEditProfileEmail(userProfile.email || '');
                               setEditProfileLocation(userProfile.location || '');
                               setEditProfileWallpaper(userProfile.wallpaper || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                              setEditProfileAvatar(userProfile.avatar || '');
                               setEditProfileLocationLink(userProfile.locationLink || '');
                               setShowEditProfileModal(true);
                             }}
@@ -3454,8 +3509,12 @@ export default function App() {
               </button>
               
               <div className="absolute bottom-3 left-4 flex items-end space-x-3">
-                <div className="w-12 h-12 rounded-xl bg-slate-950 border border-white/20 flex items-center justify-center text-xl font-black text-emerald-450 shadow">
-                  {editProfileName ? editProfileName.charAt(0).toUpperCase() : 'U'}
+                <div className="w-12 h-12 rounded-xl bg-slate-950 border border-white/20 flex items-center justify-center text-xl font-black text-emerald-450 shadow overflow-hidden relative">
+                  {editProfileAvatar ? (
+                    <img src={editProfileAvatar} alt="Live avatar preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{editProfileName ? editProfileName.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
                 </div>
                 <div>
                   <h4 className="font-extrabold text-white text-xs">{language === 'sw' ? 'Hakiki Karatasi la Ukuta' : 'Live Cover Preview'}</h4>
@@ -3539,8 +3598,171 @@ export default function App() {
                 </p>
               </div>
 
+              {/* DEVICE PHOTO UPLOAD SECTION */}
+              <div className="space-y-4 border-t border-white/5 pt-3">
+                <h4 className="text-[10px] font-mono uppercase tracking-wider text-teal-400 font-bold block text-left">
+                  📁 {language === 'sw' ? 'Pakia Picha Toka Kwenye Kifaa Chako' : 'Upload Pictures from Device'}
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Profile Picture Upload Box */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-mono text-slate-400 block text-left">
+                      👤 {language === 'sw' ? 'Mchoro / Picha ya Wasifu' : 'Profile Avatar Image'}
+                    </label>
+
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragAvatarActive(true);
+                      }}
+                      onDragLeave={() => setDragAvatarActive(false)}
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        setDragAvatarActive(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file && file.type.startsWith('image/')) {
+                          try {
+                            const base64 = await compressAndResizeImage(file, 360, 360);
+                            setEditProfileAvatar(base64);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                      className={`relative rounded-xl border-2 border-dashed p-3 text-center transition flex flex-col items-center justify-center min-h-[105px] ${
+                        dragAvatarActive 
+                          ? 'border-teal-400 bg-teal-500/5' 
+                          : editProfileAvatar 
+                            ? 'border-emerald-500/40 bg-slate-950/40' 
+                            : 'border-white/10 hover:border-white/20 bg-slate-950/20'
+                      }`}
+                    >
+                      {editProfileAvatar ? (
+                        <div className="relative group w-12 h-12 rounded-full overflow-hidden border border-white/15">
+                          <img src={editProfileAvatar} alt="upload preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditProfileAvatar('');
+                            }}
+                            className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition duration-155 flex items-center justify-center text-rose-450 font-bold text-[10px]"
+                          >
+                            ✕ {language === 'sw' ? 'Futa' : 'Reset'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 cursor-pointer w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('avatar-file-input')?.click()}>
+                          <div className="text-xl text-slate-450">📷</div>
+                          <p className="text-[10px] font-bold text-white leading-tight">
+                            {language === 'sw' ? 'Chagua au buruza hapa' : 'Select or drag & drop'}
+                          </p>
+                          <p className="text-[8px] text-slate-500">Square JPG/PNG (Max 400x400)</p>
+                        </div>
+                      )}
+
+                      <input
+                        id="avatar-file-input"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const base64 = await compressAndResizeImage(file, 360, 360);
+                              setEditProfileAvatar(base64);
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Wallpaper Cover Picture Upload Box */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-mono text-slate-400 block text-left">
+                      🖼️ {language === 'sw' ? 'Picha ya Jalada (Wallpaper)' : 'Custom Cover Wallpaper'}
+                    </label>
+
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragWallpaperActive(true);
+                      }}
+                      onDragLeave={() => setDragWallpaperActive(false)}
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        setDragWallpaperActive(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file && file.type.startsWith('image/')) {
+                          try {
+                            const base64 = await compressAndResizeImage(file, 900, 300);
+                            setEditProfileWallpaper(base64);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                      className={`relative rounded-xl border-2 border-dashed p-3 text-center transition flex flex-col items-center justify-center min-h-[105px] ${
+                        dragWallpaperActive 
+                          ? 'border-teal-400 bg-teal-500/5' 
+                          : editProfileWallpaper && editProfileWallpaper.startsWith('data:')
+                            ? 'border-emerald-500/40 bg-slate-950/40' 
+                            : 'border-white/10 hover:border-white/20 bg-slate-950/20'
+                      }`}
+                    >
+                      {editProfileWallpaper && editProfileWallpaper.startsWith('data:') ? (
+                        <div className="relative group w-full h-10 rounded-lg overflow-hidden border border-white/15">
+                          <img src={editProfileWallpaper} alt="wallpaper upload preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditProfileWallpaper('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&auto=format&fit=crop&q=80');
+                            }}
+                            className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition duration-155 flex items-center justify-center text-rose-450 font-bold text-[10px]"
+                          >
+                            ✕ {language === 'sw' ? 'Futa Jalada' : 'Reset default'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 cursor-pointer w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('wallpaper-file-input')?.click()}>
+                          <div className="text-xl text-slate-450">🖼️</div>
+                          <p className="text-[10px] font-bold text-white leading-tight">
+                            {language === 'sw' ? 'Chagua au buruza hapa' : 'Select or drag & drop'}
+                          </p>
+                          <p className="text-[8px] text-slate-500 font-mono">Wide Landscape (Max 1000x320)</p>
+                        </div>
+                      )}
+
+                      <input
+                        id="wallpaper-file-input"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const base64 = await compressAndResizeImage(file, 900, 300);
+                              setEditProfileWallpaper(base64);
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Cover Wallpaper Customize */}
-              <div className="space-y-2 border-t border-white/5 pt-3">
+              <div className="space-y-2 border-t border-white/0 pt-1">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-slate-450">
                     🖼️ {language === 'sw' ? 'Chagua Karatasi la Ukuta' : 'Profile Cover Wallpaper'}
