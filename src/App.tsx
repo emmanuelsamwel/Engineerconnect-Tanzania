@@ -14,7 +14,8 @@ import AdminPanel from './components/AdminPanel';
 import { 
   Globe, Briefcase, Zap, AlertTriangle, ShieldCheck, 
   MessageSquare, Settings, CreditCard, Star, Search, 
-  MapPin, Plus, Sparkles, Building, ChevronRight, CheckCircle, Smartphone 
+  MapPin, Plus, Sparkles, Building, ChevronRight, CheckCircle, Smartphone,
+  Camera, Video, Image as ImageIcon, Trash2, Film, Paperclip
 } from 'lucide-react';
 
 export default function App() {
@@ -93,6 +94,14 @@ export default function App() {
   const [postDescEn, setPostDescEn] = useState('');
   const [postDescSw, setPostDescSw] = useState('');
   const [postImagePreset, setPostImagePreset] = useState<string>('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80');
+
+  // Extended Media Post uploads
+  const [postUploadType, setPostUploadType] = useState<'preset' | 'file' | 'link'>('preset');
+  const [postCustomFileName, setPostCustomFileName] = useState<string>('');
+  const [postCustomFileBase64, setPostCustomFileBase64] = useState<string>('');
+  const [postUploadedMediaType, setPostUploadedMediaType] = useState<'image' | 'video'>('image');
+  const [postCustomLink, setPostCustomLink] = useState<string>('');
+  const [isDragActive, setIsDragActive] = useState<boolean>(false);
 
   // UI Selection States
   const [activeTab, setActiveTab] = useState<'find' | 'requests' | 'emergency' | 'equipment' | 'admin'>('find');
@@ -208,6 +217,21 @@ export default function App() {
     }));
   };
 
+  const handlePostFileSelect = (file: File) => {
+    if (!file) return;
+    setPostCustomFileName(file.name);
+    const isVideo = file.type.startsWith('video/') || file.name.endsWith('.mp4') || file.name.endsWith('.mov') || file.name.endsWith('.webm');
+    setPostUploadedMediaType(isVideo ? 'video' : 'image');
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setPostCustomFileBase64(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!postTitle || !postDescEn) return;
@@ -215,6 +239,35 @@ export default function App() {
     // Determine author profile
     const activeEngId = userProfile?.engineerId;
     const activeEng = engineers.find(eng => eng.id === activeEngId) || engineers.find(eng => eng.id === 'eng_1') || engineers[0];
+
+    let finalImageUrl = 'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80';
+    let finalVideoUrl = '';
+    let finalMediaType: 'image' | 'video' = 'image';
+
+    if (postUploadType === 'preset') {
+      finalImageUrl = postImagePreset;
+      finalMediaType = 'image';
+    } else if (postUploadType === 'file') {
+      if (postUploadedMediaType === 'video') {
+        finalVideoUrl = postCustomFileBase64;
+        finalMediaType = 'video';
+        finalImageUrl = '';
+      } else {
+        finalImageUrl = postCustomFileBase64;
+        finalMediaType = 'image';
+      }
+    } else if (postUploadType === 'link') {
+      const isVideoLink = postCustomLink.toLowerCase().includes('video') || 
+                          postCustomLink.match(/\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i);
+      if (isVideoLink) {
+        finalVideoUrl = postCustomLink;
+        finalMediaType = 'video';
+        finalImageUrl = '';
+      } else {
+        finalImageUrl = postCustomLink;
+        finalMediaType = 'image';
+      }
+    }
 
     const newPost: WorkPost = {
       id: `post_${Date.now()}`,
@@ -226,7 +279,9 @@ export default function App() {
       location: postLocation || activeEng.location,
       description: postDescEn,
       descriptionSwahili: postDescSw || postDescEn,
-      imageUrl: postImagePreset,
+      imageUrl: finalImageUrl,
+      videoUrl: finalVideoUrl,
+      mediaType: finalMediaType,
       likes: 0,
       likedByUser: false,
       date: new Date().toISOString().split('T')[0],
@@ -238,6 +293,10 @@ export default function App() {
     setPostLocation('');
     setPostDescEn('');
     setPostDescSw('');
+    setPostCustomFileName('');
+    setPostCustomFileBase64('');
+    setPostCustomLink('');
+    setPostUploadType('preset');
     setShowCreatePostForm(false);
   };
 
@@ -819,29 +878,117 @@ export default function App() {
                                 </select>
                               </div>
                               <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-mono text-slate-400">Select Project Media Vibe</label>
-                                <div className="grid grid-cols-5 gap-1">
+                                <label className="text-[10px] uppercase font-mono text-slate-400">Showcase Media / Picha au Video ya Mradi</label>
+                                <div className="flex gap-1.5 mb-2">
                                   {[
-                                    { id: 'solar', label: '☀️ Solar', url: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80' },
-                                    { id: 'electrical', label: '🔌 Circuit', url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&auto=format&fit=crop&q=80' },
-                                    { id: 'foundation', label: '🧱 Concrete', url: 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?w=600&auto=format&fit=crop&q=80' },
-                                    { id: 'medical', label: '🏥 ICU Unit', url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=600&auto=format&fit=crop&q=80' },
-                                    { id: 'turbine', label: '⚙️ Machine', url: 'https://images.unsplash.com/photo-1537462715879-360eeb61a0bc?w=600&auto=format&fit=crop&q=80' }
-                                  ].map((preset) => (
+                                    { id: 'preset', label: language === 'sw' ? 'Mifano (Presets)' : 'Presets' },
+                                    { id: 'file', label: language === 'sw' ? 'Weka File (Upload)' : 'Upload File' },
+                                    { id: 'link', label: language === 'sw' ? 'Weka Link (URL)' : 'Media URL' }
+                                  ].map((mode) => (
                                     <button
                                       type="button"
-                                      key={preset.id}
-                                      onClick={() => setPostImagePreset(preset.url)}
-                                      className={`px-1 py-1 bg-slate-950 border text-[9px] rounded-md transition text-center truncate ${
-                                        postImagePreset === preset.url
-                                          ? 'border-emerald-500 text-emerald-400 font-extrabold bg-slate-900'
-                                          : 'border-white/5 text-slate-400 hover:text-slate-200'
+                                      key={mode.id}
+                                      onClick={() => setPostUploadType(mode.id as 'preset' | 'file' | 'link')}
+                                      className={`px-2.5 py-0.5 text-[9px] font-bold rounded-md transition-all ${
+                                        postUploadType === mode.id
+                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-extrabold'
+                                          : 'bg-slate-950 text-slate-400 border border-white/5 hover:text-slate-200'
                                       }`}
                                     >
-                                      {preset.label}
+                                      {mode.label}
                                     </button>
                                   ))}
                                 </div>
+
+                                {postUploadType === 'preset' && (
+                                  <div className="grid grid-cols-5 gap-1">
+                                    {[
+                                      { id: 'solar', label: '☀️ Solar', url: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80' },
+                                      { id: 'electrical', label: '🔌 Circuit', url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&auto=format&fit=crop&q=80' },
+                                      { id: 'foundation', label: '🧱 Concrete', url: 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?w=600&auto=format&fit=crop&q=80' },
+                                      { id: 'medical', label: '🏥 ICU Unit', url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=600&auto=format&fit=crop&q=80' },
+                                      { id: 'turbine', label: '⚙️ Machine', url: 'https://images.unsplash.com/photo-1537462715879-360eeb61a0bc?w=600&auto=format&fit=crop&q=80' }
+                                    ].map((preset) => (
+                                      <button
+                                        type="button"
+                                        key={preset.id}
+                                        onClick={() => setPostImagePreset(preset.url)}
+                                        className={`px-1 py-1 bg-slate-950 border text-[9px] rounded-md transition text-center truncate ${
+                                          postImagePreset === preset.url
+                                            ? 'border-emerald-500 text-emerald-400 font-extrabold bg-slate-900'
+                                            : 'border-white/5 text-slate-400 hover:text-slate-200'
+                                        }`}
+                                      >
+                                        {preset.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {postUploadType === 'file' && (
+                                  <div 
+                                    onDragOver={(e) => { e.preventDefault(); setIsDragActive(true); }}
+                                    onDragLeave={() => setIsDragActive(false)}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      setIsDragActive(false);
+                                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                        handlePostFileSelect(e.dataTransfer.files[0]);
+                                      }
+                                    }}
+                                    className={`relative p-2.5 rounded-lg border border-dashed text-center transition-all ${
+                                      isDragActive ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10 bg-slate-950'
+                                    }`}
+                                  >
+                                    <input 
+                                      type="file" 
+                                      id="post-file-element"
+                                      accept="image/*,video/*"
+                                      className="hidden" 
+                                      onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                          handlePostFileSelect(e.target.files[0]);
+                                        }
+                                      }}
+                                    />
+                                    <label htmlFor="post-file-element" className="cursor-pointer flex flex-col items-center justify-center space-y-1 py-0.5">
+                                      {postCustomFileBase64 ? (
+                                        <div className="flex flex-col items-center space-y-1">
+                                          {postUploadedMediaType === 'video' ? (
+                                            <Film className="w-5 h-5 text-emerald-400 animate-pulse" />
+                                          ) : (
+                                            <ImageIcon className="w-5 h-5 text-emerald-400 animate-pulse" />
+                                          )}
+                                          <p className="text-[9px] text-emerald-400 font-bold max-w-[160px] truncate">{postCustomFileName}</p>
+                                          <p className="text-[7.5px] text-slate-500">{(postCustomFileBase64.length * 0.75 / 1024 / 1024).toFixed(1)} MB • Click to replace</p>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="flex items-center space-x-1 justify-center text-slate-450 hover:text-white transition">
+                                            <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                                            <span className="text-[9px] font-bold">{language === 'sw' ? 'Chagua Picha/Video au Buruta' : 'Choose Photo/Video or Drag & Drop'}</span>
+                                          </div>
+                                          <p className="text-[8px] text-slate-500">PNG, JPG, MP4, WebM (Click to browse)</p>
+                                        </>
+                                      )}
+                                    </label>
+                                  </div>
+                                )}
+
+                                {postUploadType === 'link' && (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="url"
+                                      placeholder="https://example.com/project_video.mp4"
+                                      value={postCustomLink}
+                                      onChange={(e) => setPostCustomLink(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 text-slate-150 rounded-lg p-1.5 focus:outline-none focus:border-emerald-500 text-[11px]"
+                                    />
+                                    <p className="text-[8px] text-slate-500 italic leading-none">
+                                      💡 {language === 'sw' ? 'Inacheza video ikiwa kiungo kinaishia na .mp4, .webm n.k.' : 'Plays as video if the URL ends with .mp4 or contains video.'}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -958,15 +1105,24 @@ export default function App() {
                                   </div>
                                 </div>
 
-                                {/* Post Image Showcase Frame */}
+                                {/* Post Image/Video Showcase Frame */}
                                 <div className="relative overflow-hidden rounded-xl border border-white/5 aspect-video bg-slate-950">
-                                  <img 
-                                    src={post.imageUrl} 
-                                    alt={post.title} 
-                                    referrerPolicy="no-referrer"
-                                    className="w-full h-full object-cover hover:scale-105 transition duration-500"
-                                  />
-                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent p-4 flex flex-col justify-end">
+                                  {post.mediaType === 'video' || post.videoUrl ? (
+                                    <video 
+                                      src={post.videoUrl} 
+                                      controls
+                                      playsInline
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <img 
+                                      src={post.imageUrl} 
+                                      alt={post.title} 
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover hover:scale-105 transition duration-500"
+                                    />
+                                  )}
+                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent p-4 flex flex-col justify-end pointer-events-none">
                                     <h3 className="font-black text-slate-100 text-sm leading-snug drop-shadow-md">
                                       {post.title}
                                     </h3>

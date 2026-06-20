@@ -9,6 +9,8 @@ export interface WorkPost {
   description: string;
   descriptionSwahili: string;
   imageUrl: string;
+  videoUrl?: string;
+  mediaType?: 'image' | 'video';
   likes: number;
   likedByUser?: boolean;
   date: string;
