@@ -823,13 +823,7 @@ export default function App() {
                           </div>
                           <button
                             onClick={() => {
-                              if (userRole !== 'engineer') {
-                                setAuthMode('register');
-                                setRegRole('engineer');
-                                setShowAuthModal(true);
-                              } else {
-                                setShowCreatePostForm(!showCreatePostForm);
-                              }
+                              setShowCreatePostForm(!showCreatePostForm);
                             }}
                             className="p-1 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-450 text-slate-950 font-extrabold text-[11px] transition shadow"
                           >
