@@ -46,6 +46,34 @@ const playWhatsAppChime = () => {
   }
 };
 
+const sendDeviceNotification = (title: string, message: string, icon?: string | null) => {
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      try {
+        new Notification(title, {
+          body: message,
+          icon: icon || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150&auto=format&fit=crop&q=80',
+        });
+      } catch (err) {
+        console.error('Failed to trigger Notification object:', err);
+      }
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          try {
+            new Notification(title, {
+              body: message,
+              icon: icon || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150&auto=format&fit=crop&q=80',
+            });
+          } catch (err) {
+            console.error('Failed to trigger Notification object after permission:', err);
+          }
+        }
+      });
+    }
+  }
+};
+
 const SIMULATED_POST_TEMPLATES = [
   {
     title: { en: "Grid Solar Optimizer Calibration at Kiwira Coal Mine", sw: "Urekebishaji wa Kifaa cha Kusawazisha Solar kwenye Mgodi wa Kiwira" },
@@ -193,6 +221,7 @@ export default function App() {
 
       setNotifications(prev => [simNotification, ...prev]);
       playWhatsAppChime();
+      sendDeviceNotification(simNotification.title, simNotification.message, simNotification.senderAvatar);
     }
 
     return () => {
@@ -237,7 +266,13 @@ export default function App() {
   const [isDragActive, setIsDragActive] = useState<boolean>(false);
 
   // UI Selection States
-  const [activeTab, setActiveTab] = useState<'find' | 'requests' | 'emergency' | 'equipment' | 'admin'>('find');
+  const [activeTab, setActiveTab] = useState<'find' | 'requests' | 'emergency' | 'notifications' | 'admin'>('find');
+  const [devicePermission, setDevicePermission] = useState<string>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'unsupported';
+  });
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEngineer, setSelectedEngineer] = useState<Engineer | null>(null);
@@ -474,6 +509,7 @@ export default function App() {
     };
     setNotifications(prev => [userNotification, ...prev]);
     playWhatsAppChime();
+    sendDeviceNotification(userNotification.title, userNotification.message, userNotification.senderAvatar);
 
     setPostTitle('');
     setPostLocation('');
@@ -509,6 +545,23 @@ export default function App() {
     };
 
     setClientJobs(prev => [newJob, ...prev]);
+
+    // Dispatch job post notification layout
+    const jobNotification = {
+      id: `notification_${Date.now()}`,
+      senderName: userProfile?.name || 'Mteja Guest',
+      senderAvatar: userProfile?.wallpaper || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      title: language === 'sw' ? 'Kazi Mpya Kwenye Bodi! 💼' : 'New Client Job Posted! 💼',
+      message: `${jobTitle} (${jobLocation || userProfile?.location || 'Dar es Salaam'})`,
+      time: language === 'sw' ? 'Sasa hivi' : 'Just now',
+      postId: undefined,
+      jobId: newJob.id,
+      category: jobCategory
+    };
+    setNotifications(prev => [jobNotification, ...prev]);
+    playWhatsAppChime();
+    sendDeviceNotification(jobNotification.title, jobNotification.message, jobNotification.senderAvatar);
+
     setJobTitle('');
     setJobLocation('');
     setJobBudget('');
@@ -900,12 +953,16 @@ export default function App() {
                 🚨 {language === 'sw' ? 'SOS Dharura' : 'SOS Emergency'}
               </button>
               <button
-                onClick={() => setActiveTab('equipment')}
-                className={`px-4 py-2 text-xs font-bold font-mono tracking-wide transition rounded-md ${
-                  activeTab === 'equipment' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                onClick={() => setActiveTab('notifications')}
+                className={`px-4 py-2 text-xs font-bold font-mono tracking-wide transition rounded-md flex items-center gap-1.5 ${
+                  activeTab === 'notifications' ? 'bg-slate-800 text-teal-400 border border-teal-500/20' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                ⚙️ {language === 'sw' ? 'Sajili Mitambo' : 'Equipments Log'}
+                📢 {language === 'sw' ? 'Arifa za Kazi' : 'Job & Post Alerts'} {notifications.length > 0 && (
+                  <span className="bg-teal-500 text-slate-950 font-sans font-black text-[9px] px-1.5 py-0.2 rounded-full leading-tight">
+                    {notifications.length}
+                  </span>
+                )}
               </button>
             </>
           )}
@@ -2344,16 +2401,395 @@ export default function App() {
                   onDispatchSOS={handleDispatchSOS}
                 />
               )}
+              
+              {/* Job & Post Alerts Center */}
+              {activeTab === 'notifications' && (
+                <div className="space-y-6 animate-fade-in" id="alerts-notifications-center">
+                  
+                  {/* Web Push Alerts Setup Card */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-white/5 relative overflow-hidden shadow-2xl">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
+                    
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                      <div className="space-y-1.5 max-w-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1 px-2.5 rounded bg-teal-500/10 text-teal-400 font-mono text-[9px] font-black uppercase tracking-wider">
+                            {language === 'sw' ? 'Mlipuko wa Kazi' : 'Device Integration'}
+                          </span>
+                          <span className="text-slate-500 text-xs font-mono">•</span>
+                          {devicePermission === 'granted' ? (
+                            <span className="text-emerald-450 font-mono text-[10px] font-bold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+                              {language === 'sw' ? 'IMEWEZESHWA' : 'DEVICE PUSH ACTIVE'}
+                            </span>
+                          ) : devicePermission === 'denied' ? (
+                            <span className="text-rose-400 font-mono text-[10px] font-bold">
+                              {language === 'sw' ? 'IMEZUIWA' : 'DEVICE PUSH BLOCKED'}
+                            </span>
+                          ) : (
+                            <span className="text-amber-450 font-mono text-[10px] font-bold">
+                              {language === 'sw' ? 'NJE YA ARYFA' : 'NATIVE STANDBY'}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <h3 className="text-base font-extrabold text-white tracking-tight text-left">
+                          {language === 'sw' ? 'Arifa za Kwenye Kifaa Chako (Mobile & Desktop OS)' : 'Operating System Native Device alerts'}
+                        </h3>
+                        
+                        <p className="text-xs text-slate-350 leading-relaxed font-sans text-left">
+                          {language === 'sw' ? 
+                            'Ili ujue pindi tu kazi inayotangazwa hata kama upo nje ya application ya Builda, wezesha arifa hizi za native. Utaanza kupokea popup kwenye notification center ya simu au kompyuta yako papo hapo.' : 
+                            'Never miss an opening. Turn on native push notifications to get system-level alerts on your device Notification Center immediately when new tenders or project showcases are posted. Keep earning even when offline or out of the app!'}
+                        </p>
+                      </div>
 
-              {/* Equipment Planner tab */}
-              {activeTab === 'equipment' && (
-                <MaintenancePlanner
-                  language={language}
-                  engineers={engineers}
-                  equipment={equipmentList}
-                  onAddEquipment={handleAddEquipment}
-                  onLogService={handleLogService}
-                />
+                      {/* Request Action Button / Help instructions depending on permission state */}
+                      <div className="flex-shrink-0 self-start sm:self-auto w-full sm:w-auto">
+                        {devicePermission === 'granted' ? (
+                          <button
+                            onClick={() => {
+                              sendDeviceNotification(
+                                language === 'sw' ? 'Majaribio ya Arifa! 🚀' : 'Device Test Alert! 🚀',
+                                language === 'sw' ? 'Hivi ndivyo utakavyofahamishwa kazi mpya zikichapishwa.' : 'Your device is fully configured to catch instant engineering work posts!'
+                              );
+                            }}
+                            className="w-full sm:w-auto py-2 px-4 rounded-xl bg-teal-500 hover:bg-teal-450 text-slate-950 font-black text-xs transition duration-200 uppercase tracking-widest shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span>⚡</span> {language === 'sw' ? 'Jaribu Arifa ya OS' : 'Test Device Pop-up'}
+                          </button>
+                        ) : devicePermission === 'denied' ? (
+                          <div className="p-2.5 bg-rose-950/20 border border-rose-500/10 rounded-xl text-[10px] text-rose-300 font-mono max-w-[220px]">
+                            💡 {language === 'sw' ? 'Ili kuwasha: Bofya alama ya kufuli kwenye URL bar, ruhusu "Notifications" na ufresh ukurasa.' : 'To unlock: Click the Lock icon in your browser address bar and switch Notifications to Allow.'}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              if (typeof window !== 'undefined' && 'Notification' in window) {
+                                Notification.requestPermission().then(perm => {
+                                  setDevicePermission(perm);
+                                  if (perm === 'granted') {
+                                    sendDeviceNotification(
+                                      language === 'sw' ? 'Arifa Zimeruhusiwa! 🔔' : 'Notifications Enabled! 🔔',
+                                      language === 'sw' ? 'Sasa utapokea arifa papo hapo hata ukiwa nje ya app.' : 'You will now receive instant alerts even when the app is in the background.'
+                                    );
+                                  }
+                                });
+                              }
+                            }}
+                            className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 active:scale-95 text-slate-950 font-black text-xs transition-all duration-200 uppercase tracking-widest shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span>🔔</span> {language === 'sw' ? 'Wezesha Kwenye Simu/PC' : 'Enable Device Alerts'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Simulator Testing Interface */}
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-white/5 space-y-4">
+                    <div className="flex items-center space-x-3 border-b border-white/5 pb-3">
+                      <div className="p-2 rounded-lg bg-teal-500/10 text-teal-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold text-slate-200 font-mono uppercase tracking-wider">
+                          {language === 'sw' ? 'Kituo cha Majaribio ya Arifa' : 'Live Notification Playground Simulator'}
+                        </h4>
+                        <p className="text-[11px] text-slate-400">
+                          {language === 'sw' ? 'Bonyeza vitufe hivi kutengeneza mifano ya kazi ili uone jinsi arifa ya simu inavyotokea.' : 'Manually trigger real-time simulated posts to confirm native OS alerts show up on your taskbar.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs text-left">
+                      {/* simulator trigger button 1 */}
+                      <button
+                        onClick={() => {
+                          const randomEng = INITIAL_ENGINEERS[Math.floor(Math.random() * INITIAL_ENGINEERS.length)];
+                          const randomTemplate = SIMULATED_POST_TEMPLATES[Math.floor(Math.random() * SIMULATED_POST_TEMPLATES.length)];
+                          
+                          const newSimPost: WorkPost = {
+                            id: `post_sim_${Date.now()}`,
+                            engineerId: randomEng.id,
+                            engineerName: randomEng.name,
+                            engineerAvatar: randomEng.avatar,
+                            engineerCategory: randomTemplate.category,
+                            title: randomTemplate.title[language] || randomTemplate.title.en,
+                            location: randomEng.location,
+                            description: randomTemplate.desc.en,
+                            descriptionSwahili: randomTemplate.desc.sw,
+                            imageUrl: randomTemplate.imageUrl,
+                            likes: Math.floor(Math.random() * 5) + 1,
+                            likedByUser: false,
+                            date: new Date().toISOString().split('T')[0],
+                            comments: []
+                          };
+
+                          setPosts(prev => [newSimPost, ...prev]);
+
+                          const simNotification = {
+                            id: `notification_${Date.now()}`,
+                            senderName: randomEng.name,
+                            senderAvatar: randomEng.avatar,
+                            title: language === 'sw' ? 'Kazi Mpya Imechangiwa! 🟢' : 'Certified Specialist Shared Work! 🟢',
+                            message: randomTemplate.title[language] || randomTemplate.title.en,
+                            time: language === 'sw' ? 'Sasa hivi' : 'Just now',
+                            postId: newSimPost.id,
+                            category: randomTemplate.category
+                          };
+
+                          setNotifications(prev => [simNotification, ...prev]);
+                          playWhatsAppChime();
+                          sendDeviceNotification(simNotification.title, simNotification.message, simNotification.senderAvatar);
+                        }}
+                        className="p-3 bg-slate-950 hover:bg-slate-920 border border-white/5 hover:border-white/10 rounded-xl transition text-left space-y-1 group cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                            ⚙️ {language === 'sw' ? 'Simulisha Mradi Mpya' : 'Simulate showcase post'}
+                          </span>
+                          <span className="text-[10px] text-teal-400 font-mono font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-450 leading-relaxed font-sans">
+                          {language === 'sw' ? 'Hutengeneza chapisho la utendaji kazi la mhandisi, na kurusha arifa.' : 'Triggers an engineer portfolio update in the background with simulated media detail.'}
+                        </p>
+                      </button>
+
+                      {/* simulator trigger button 2 */}
+                      <button
+                        onClick={() => {
+                          const mockJobTitles = [
+                            { en: "Urgent Hospital Oxygen Compressor repair needed", sw: "Ukarabati wa haraka wa Compressor ya Oksijeni Hospitalini" },
+                            { en: "Solar Grid expansion for remote school in Dodoma", sw: "Upanuzi wa gridi ya Sola kwa shule ya kijijini Dodoma" },
+                            { en: "Emergency sewer pump inspection at Masaki flats", sw: "Ukaguzi wa dharura wa pampu ya maji machafu Masaki" },
+                            { en: "PLC Industrial controller malfunction debugging", sw: "Urekebishaji wa mfumo wa PLC kwenye kiwanda cha uzalishaji" }
+                          ];
+                          const randomTitle = mockJobTitles[Math.floor(Math.random() * mockJobTitles.length)];
+                          const randomCat: Category = ['Electrical', 'Solar', 'Mechanical', 'Civil', 'Biomedical'][Math.floor(Math.random() * 5)] as Category;
+                          const randomLoc = ['Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma', 'Mbeya'][Math.floor(Math.random() * 5)];
+                          const budgetAmount = (Math.floor(Math.random() * 10) + 2) * 200000;
+
+                          const newJob: ClientJob = {
+                            id: `job_sim_${Date.now()}`,
+                            clientName: 'Dr. Raphael Health Organization',
+                            clientEmail: 'info@raphaelhealth.org',
+                            clientAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+                            title: randomTitle[language] || randomTitle.en,
+                            category: randomCat,
+                            location: randomLoc,
+                            description: "Urgent site diagnostics and corrective engineering works required within Cap 295 guidelines.",
+                            descriptionSwahili: "Uchunguzi wa haraka na ujenzi wa dharura unahitajika chini ya miongozo ya ERB.",
+                            budget: budgetAmount.toLocaleString() + ' TZS',
+                            urgency: 'High',
+                            datePosted: new Date().toISOString().split('T')[0],
+                            status: 'open',
+                            proposals: []
+                          };
+
+                          setClientJobs(prev => [newJob, ...prev]);
+
+                          const jobNotification = {
+                            id: `notification_${Date.now()}`,
+                            senderName: 'Dr. Raphael Health Organization',
+                            senderAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+                            title: language === 'sw' ? 'Zabuni Mpya Kwenye Bodi! 💼' : 'New Biddable Job Opening Advertised! 💼',
+                            message: `${newJob.title} (${newJob.location})`,
+                            time: language === 'sw' ? 'Sasa hivi' : 'Just now',
+                            postId: undefined,
+                            jobId: newJob.id,
+                            category: randomCat
+                          };
+
+                          setNotifications(prev => [jobNotification, ...prev]);
+                          playWhatsAppChime();
+                          sendDeviceNotification(jobNotification.title, jobNotification.message, jobNotification.senderAvatar);
+                        }}
+                        className="p-3 bg-slate-950 hover:bg-slate-920 border border-white/5 hover:border-white/10 rounded-xl transition text-left space-y-1 group cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                            💼 {language === 'sw' ? 'Simulisha Zabuni ya Kazi' : 'Simulate Client Job offer'}
+                          </span>
+                          <span className="text-[10px] text-teal-400 font-mono font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-450 leading-relaxed font-sans">
+                          {language === 'sw' ? 'Huongeza kazi mpya kwenye mbao, ikiruhusu mafundi kutoa zabuni mara moja.' : 'Posts a new public support ticket on the public job board to simulate real-time client postings.'}
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Notification List Section */}
+                  <div className="space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-350 font-mono uppercase tracking-wider flex items-center gap-1.5 text-left">
+                        <span>📋</span> {language === 'sw' ? 'Kumbukumbu ya Arifa za Kipindi Hiki' : 'Live Broadcast Feed History'}
+                        <span className="bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded text-[9px] font-mono text-teal-400 font-black">
+                          {notifications.length}
+                        </span>
+                      </h4>
+                      {notifications.length > 0 && (
+                        <button
+                          onClick={() => setNotifications([])}
+                          className="text-[10px] font-mono hover:underline text-rose-400 cursor-pointer"
+                        >
+                          [{language === 'sw' ? 'Futa Zote' : 'Clear All Feed'}]
+                        </button>
+                      )}
+                    </div>
+
+                    {notifications.length === 0 ? (
+                      <div className="p-16 text-center border border-white/5 border-dashed rounded-2xl bg-slate-900/40 space-y-3.5">
+                        <div className="w-12 h-12 rounded-full bg-slate-950 flex items-center justify-center text-xl text-slate-550 border border-white/5 mx-auto">
+                          🔔
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-slate-300 font-mono">
+                            {language === 'sw' ? 'Hakuna Arifa bado kwenye sehemu hii' : 'Your live notification ledger is clean.'}
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 max-w-sm mx-auto leading-relaxed">
+                            {language === 'sw' ? 'Kazi zikichapishwa au ukibonyeza "Simulisha" hapo juu, zitarekodiwa hapa papo hapo.' : 'Simulate incoming requests above or wait for background automation posts to populate your active history!'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const seeded = [
+                              {
+                                id: `notification_seed_1_${Date.now()}`,
+                                senderName: 'Eng. Amina Shehe',
+                                senderAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+                                title: language === 'sw' ? 'Mhandisi ameweka Kazi Mpya! 🟢' : 'Engineer posted an update showcase! 🟢',
+                                message: 'Solar Grid optimizer setup calibration workspace at Kigamboni Complex',
+                                time: '2 mins ago',
+                                category: 'Solar'
+                              },
+                              {
+                                id: `notification_seed_2_${Date.now()}`,
+                                senderName: 'Julius Kabogo',
+                                senderAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+                                title: language === 'sw' ? 'Mhandisi ameweka Kazi Mpya! 🟢' : 'Engineer posted a new project showcase! 🟢',
+                                message: 'Automated valve controller alignment at Dar Beverage Warehouse',
+                                time: '10 mins ago',
+                                category: 'Mechanical'
+                              },
+                              {
+                                id: `notification_seed_3_${Date.now()}`,
+                                senderName: 'Ministry of Health Admin',
+                                senderAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
+                                title: language === 'sw' ? 'Zabuni Mpya Kwenye Bodi! 💼' : 'New Biddable Job Opening Advertised! 💼',
+                                message: 'Urgent medical autoclave pressure chamber troubleshooting bid call in Mbeya referral',
+                                time: '15 mins ago',
+                                category: 'Biomedical'
+                              }
+                            ];
+                            setNotifications(seeded);
+                          }}
+                          className="py-1.5 px-3 rounded-lg border border-teal-500/20 hover:border-teal-500/30 text-teal-400 hover:text-teal-350 text-[10.5px] font-bold transition font-mono bg-teal-555/5 mx-auto cursor-pointer"
+                        >
+                          ⚙️ {language === 'sw' ? 'Pakia Arifa za Mfano' : 'Load Seed History'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {notifications.map((notif: any) => {
+                          const isJob = !notif.postId;
+                          return (
+                            <div
+                              key={notif.id}
+                              className={`p-4 rounded-xl bg-slate-900 border transition hover:border-white/10 flex gap-3.5 relative overflow-hidden ${
+                                isJob ? 'border-amber-500/10' : 'border-white/5'
+                              }`}
+                            >
+                              {/* Accent indicator bar */}
+                              <div className={`absolute top-0 bottom-0 left-0 w-1 ${
+                                isJob ? 'bg-amber-400' : 'bg-emerald-400'
+                              }`} />
+
+                              <div className="w-10 h-10 rounded-full border border-white/10 bg-slate-950 overflow-hidden shrink-0">
+                                <img
+                                  src={notif.senderAvatar || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150&auto=format&fit=crop&q=80'}
+                                  alt="avatar"
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+
+                              <div className="flex-1 space-y-1.5 text-xs text-slate-350 text-left">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-extrabold text-white text-[11px] font-sans">
+                                      {notif.senderName}
+                                    </span>
+                                    {notif.category && (
+                                      <span className="text-[8px] font-mono font-black uppercase text-teal-400 bg-teal-500/15 border border-teal-500/10 px-1.5 py-0.2 rounded select-none">
+                                        {notif.category}
+                                      </span>
+                                    )}
+                                    {isJob && (
+                                      <span className="text-[8px] font-mono font-black uppercase text-amber-400 bg-amber-500/15 border border-amber-500/10 px-1.5 py-0.2 rounded select-none">
+                                        {language === 'sw' ? 'ZABUNI' : 'VACANCY'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[9px] font-mono text-slate-500">{notif.time}</span>
+                                </div>
+
+                                <p className="font-sans text-[11.5px] leading-relaxed text-slate-200">
+                                  <strong>{notif.title}</strong>
+                                </p>
+                                <p className="font-mono text-[10.5px] leading-relaxed text-slate-400 italic">
+                                  "{notif.message}"
+                                </p>
+
+                                {/* Interactive Actions */}
+                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                  {!isJob ? (
+                                    <button
+                                      onClick={() => {
+                                        setHomeSubTab('feed');
+                                        setSelectedCategory(notif.category || 'All');
+                                        setActiveTab('find');
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                      }}
+                                      className="py-1 px-2.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-450 hover:text-emerald-400 font-bold font-mono text-[10px] transition border border-emerald-500/15 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <span>👁️</span> {language === 'sw' ? 'Kagua kwenye Feed ya Kazi' : 'View Work Showcase Feed'}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setHomeSubTab('jobs');
+                                        setSelectedCategory(notif.category || 'All');
+                                        setActiveTab('find');
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                      }}
+                                      className="py-1 px-2.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-450 hover:text-amber-400 font-bold font-mono text-[10px] transition border border-amber-500/15 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <span>💼</span> {language === 'sw' ? 'Toa Zabuni Kwenye Mbao' : 'Inspect & Place Bid on Tender'}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => {
+                                      setNotifications(prev => prev.filter((n: any) => n.id !== notif.id));
+                                    }}
+                                    className="py-1 px-2.5 rounded bg-slate-950/40 hover:bg-slate-950/80 text-slate-500 hover:text-rose-400 text-[10px] font-mono font-bold transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <span>✕</span> {language === 'sw' ? 'Ondoa' : 'Dismiss'}
+                                  </button>
+                                </div>
+
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                  </div>
+
+                </div>
               )}
             </>
           )}
